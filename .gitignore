@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# KIS 자격증명 (repo 내 관리, 커밋 금지). config/.env.example 템플릿만 커밋.
+.env
+config/vps/.env
+config/prod/.env
+!config/.env.example
+
+# uv
+.uv/
+
+# Node / Tauri
+node_modules/
+frontend/dist/
+frontend/src-tauri/target/
+
+# 로컬 데이터
+*.sqlite
+*.db
+
+# 토큰 파일 캐시는 ~/KIS/config/ 에 저장 (repo 밖)
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
