@@ -24,6 +24,10 @@ KIS_APP_KEY=... / KIS_APP_SECRET=... / KIS_ACCT=계좌8자리 / KIS_HTS_ID=... /
 
 ## 실행 (개발)
 ```bash
+# 최초 1회
+cd backend && uv sync            # Python 의존성 (uv 필요)
+cd frontend && npm install       # Node 의존성
+
 # 터미널 A — 백엔드 (기본 vps=모의)
 cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 8787
 #   실전: KIS_HTS_ENV=prod 를 앞에 붙임 (실주문 주의!)
@@ -31,6 +35,7 @@ cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 8787
 cd frontend && npm run dev        # → http://localhost:1420
 # 네이티브 앱: cd frontend && npx tauri dev  (Rust 필요)
 ```
+전제: `uv`(Python), `node`/`npm`, 이웃 repo `open-trading-api`. 상세는 `backend/README.md`·`frontend/README.md`.
 
 ## 기능
 실시간 호가(10단계)·체결·차트(ECharts: 캔들+MA+볼린저+RSI+MACD, 일/주/월/분) · 관심종목(검색·추가/삭제·드래그 순서변경) · 주문(매수/매도·지정가/시장가·정정/취소) · 잔고/손익 · 미체결/체결내역 · 순위 · 투자자매매동향 · 체결통보 실시간. 실시간은 장중(09:00~15:30) 유입.
