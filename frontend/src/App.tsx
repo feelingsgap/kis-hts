@@ -60,13 +60,19 @@ export default function App() {
     return () => clearInterval(t);
   }, [refreshAccount]);
 
-  // 선택 종목의 호가 스냅샷
+  // 선택 종목의 호가 스냅샷 (alive 가드: 종목 전환 중 도착한 옛 응답이 새 선택을 덮어쓰지 않게)
   useEffect(() => {
     if (!selected) return;
+    let alive = true;
     api
       .orderbook(selected)
-      .then(setOrderBook)
+      .then((ob) => {
+        if (alive) setOrderBook(ob);
+      })
       .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [selected, setOrderBook]);
 
   return (

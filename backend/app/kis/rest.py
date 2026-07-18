@@ -17,9 +17,9 @@ from app.config import get_settings
 from app.kis.auth import _load_ka, token_manager
 
 _settings = get_settings()
-# 모의(vps) 초당 제한(EGW00201) 실측: 0.5s 간격까지 안전 → 0.55s(여유). 실전 70ms.
-# (기존 1.1s는 과도하게 보수적이라 로딩이 느렸음)
-_MIN_INTERVAL = 0.55 if _settings.env == "vps" else 0.07
+# 모의(vps) 초당 제한(EGW00201) 회피 간격. 실전 70ms.
+# 주의: 0.55s는 동시 버스트에서 ~17% EGW00201 실패(실측)라 상향함.
+_MIN_INTERVAL = 0.8 if _settings.env == "vps" else 0.07
 
 
 class RateLimiter:
@@ -39,6 +39,33 @@ class RateLimiter:
 
 _limiter = RateLimiter(_MIN_INTERVAL)
 
+_RATELIMIT_CODE = "EGW00201"  # KIS "초당 거래건수를 초과하였습니다"
+
+
+def _kis(fn, *args, **kwargs):
+    """KIS 조회 호출을 rate limiter로 직렬화하고, 초당 제한(EGW00201) 응답이면 재시도한다.
+
+    간격(_MIN_INTERVAL)만으로는 KIS 모의 서버가 동시 버스트에서 EGW00201을 간헐 반환한다
+    (실측: 0.55s ~17%, 0.8s ~8% 실패). open-trading-api는 이 에러를 stdout에 찍고 빈 결과를
+    돌려주므로, 캡처한 출력에서 코드를 감지해 백오프 후 재시도한다. 조회(read) 전용 —
+    주문 등 상태 변경 호출은 무분별 재시도가 위험하므로 이 헬퍼를 쓰지 않는다.
+    반환값(DataFrame 또는 (df1, df2) 튜플)은 그대로 통과시킨다.
+    """
+    result = None
+    for attempt in range(4):
+        _limiter.wait()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            result = fn(*args, **kwargs)
+        out = buf.getvalue()
+        if out:
+            print(out, end="")  # 캡처한 라이브러리 로그를 그대로 재출력
+        if _RATELIMIT_CODE in out and attempt < 3:
+            time.sleep(0.5 * (attempt + 1))  # 0.5s → 1.0s → 1.5s 백오프
+            continue
+        return result
+    return result
+
 
 def _ds():
     """국내주식 함수 모듈을 지연 import (kis_auth 부트스트랩으로 sys.path 보장)."""
@@ -55,8 +82,7 @@ def _env() -> str:
 
 # ---------- 현재가 ----------
 def current_price(symbol: str, market: str = "J") -> dict:
-    _limiter.wait()
-    df = _ds().inquire_price(env_dv=_env(), fid_cond_mrkt_div_code=market, fid_input_iscd=symbol)
+    df = _kis(_ds().inquire_price, env_dv=_env(), fid_cond_mrkt_div_code=market, fid_input_iscd=symbol)
     if df is None or df.empty:
         return {}
     r = df.iloc[0].to_dict()
@@ -79,9 +105,9 @@ def current_price(symbol: str, market: str = "J") -> dict:
 
 # ---------- 호가 (10호가) ----------
 def orderbook(symbol: str, market: str = "J") -> dict:
-    _limiter.wait()
-    df1, df2 = _ds().inquire_asking_price_exp_ccn(
-        env_dv=_env(), fid_cond_mrkt_div_code=market, fid_input_iscd=symbol
+    df1, df2 = _kis(
+        _ds().inquire_asking_price_exp_ccn,
+        env_dv=_env(), fid_cond_mrkt_div_code=market, fid_input_iscd=symbol,
     )
     if df1 is None or df1.empty:
         return {}
@@ -113,8 +139,8 @@ def daily_chart(
     symbol: str, start: str, end: str, market: str = "J", period: str = "D", adj: str = "0"
 ) -> dict:
     """period: D(일)/W(주)/M(월)/Y(년), adj: 0(수정주가) 1(원주가). 날짜 YYYYMMDD."""
-    _limiter.wait()
-    _, df2 = _ds().inquire_daily_itemchartprice(
+    _, df2 = _kis(
+        _ds().inquire_daily_itemchartprice,
         env_dv=_env(),
         fid_cond_mrkt_div_code=market,
         fid_input_iscd=symbol,
@@ -143,8 +169,8 @@ def daily_chart(
 # ---------- 분봉 차트 ----------
 def minute_chart(symbol: str, base_hour: str, market: str = "J", past: str = "Y") -> dict:
     """당일 분봉. base_hour=기준시간 HHMMSS(이 시각까지 최대 30봉), past=과거포함 Y/N."""
-    _limiter.wait()
-    _, df2 = _ds().inquire_time_itemchartprice(
+    _, df2 = _kis(
+        _ds().inquire_time_itemchartprice,
         env_dv=_env(),
         fid_cond_mrkt_div_code=market,
         fid_input_iscd=symbol,
@@ -187,9 +213,9 @@ def _acct() -> tuple[str, str]:
 
 # ---------- 잔고 ----------
 def balance() -> dict:
-    _limiter.wait()
     cano, prod = _acct()
-    df1, df2 = _ds().inquire_balance(
+    df1, df2 = _kis(
+        _ds().inquire_balance,
         env_dv=_env(), cano=cano, acnt_prdt_cd=prod,
         afhr_flpr_yn="N", inqr_dvsn="02", unpr_dvsn="01",
         fund_sttl_icld_yn="N", fncg_amt_auto_rdpt_yn="N", prcs_dvsn="00",
@@ -268,9 +294,9 @@ def _realized_pnl_from_fills() -> int | None:
 
 # ---------- 매수가능조회 ----------
 def psbl_order(symbol: str, price: int, ord_dvsn: str = "00") -> dict:
-    _limiter.wait()
     cano, prod = _acct()
-    df = _ds().inquire_psbl_order(
+    df = _kis(
+        _ds().inquire_psbl_order,
         env_dv=_env(), cano=cano, acnt_prdt_cd=prod, pdno=symbol,
         ord_unpr=str(price), ord_dvsn=ord_dvsn,
         cma_evlu_amt_icld_yn="N", ovrs_icld_yn="N",
@@ -338,10 +364,10 @@ def revise_cancel(
 def pending_orders() -> list[dict]:
     from datetime import datetime as _dt
 
-    _limiter.wait()
     cano, prod = _acct()
     today = _dt.now().strftime("%Y%m%d")
-    df1, _ = _ds().inquire_daily_ccld(
+    df1, _ = _kis(
+        _ds().inquire_daily_ccld,
         env_dv=_env(), pd_dv="inner", cano=cano, acnt_prdt_cd=prod,
         inqr_strt_dt=today, inqr_end_dt=today, sll_buy_dvsn_cd="00",
         ccld_dvsn="02", inqr_dvsn="00", inqr_dvsn_3="00",
@@ -371,10 +397,10 @@ def pending_orders() -> list[dict]:
 def filled_orders() -> list[dict]:
     from datetime import datetime as _dt
 
-    _limiter.wait()
     cano, prod = _acct()
     today = _dt.now().strftime("%Y%m%d")
-    df1, _ = _ds().inquire_daily_ccld(
+    df1, _ = _kis(
+        _ds().inquire_daily_ccld,
         env_dv=_env(), pd_dv="inner", cano=cano, acnt_prdt_cd=prod,
         inqr_strt_dt=today, inqr_end_dt=today, sll_buy_dvsn_cd="00",
         ccld_dvsn="01", inqr_dvsn="00", inqr_dvsn_3="00",  # 01: 체결
