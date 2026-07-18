@@ -61,7 +61,8 @@ export const api = {
   marketIndex: () => getJson<IndexRow[]>("/api/index"),
   chartDaily: (symbol: string, period: "D" | "W" | "M") =>
     getJson<ChartResp>(`/api/chart/${symbol}/daily?period=${period}`),
-  chartMinute: (symbol: string) => getJson<ChartResp>(`/api/chart/${symbol}/minute`),
+  chartMinute: (symbol: string, interval = 1) =>
+    getJson<ChartResp>(`/api/chart/${symbol}/minute?interval=${interval}`),
 
   // P3: 잔고/주문
   balance: () => getJson<BalanceResp>("/api/balance"),

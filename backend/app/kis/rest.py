@@ -167,33 +167,110 @@ def daily_chart(
 
 
 # ---------- 분봉 차트 ----------
-def minute_chart(symbol: str, base_hour: str, market: str = "J", past: str = "Y") -> dict:
-    """당일 분봉. base_hour=기준시간 HHMMSS(이 시각까지 최대 30봉), past=과거포함 Y/N."""
-    _, df2 = _kis(
-        _ds().inquire_time_itemchartprice,
-        env_dv=_env(),
-        fid_cond_mrkt_div_code=market,
-        fid_input_iscd=symbol,
-        fid_input_hour_1=base_hour,
-        fid_pw_data_incu_yn=past,
-        fid_etc_cls_code="",
-    )
-    if df2 is None or df2.empty:
-        return {"symbol": symbol, "period": "M1", "candles": []}
-    candles = [
+# KIS 국내주식 분봉은 1분 단위만 제공(호출당 최대 30봉) → 1분봉을 뒤로 페이지네이션하며
+# 모은 뒤 N분(3/5/10/30/60)으로 집계한다. 초당 제한 탓에 페이지 수는 상한을 둔다.
+def _pages_for(interval: int) -> int:
+    """목표 ~50 출력봉을 위한 1분봉 페이지 수(페이지당 30봉), 상한 10."""
+    return max(1, min((interval * 50 + 29) // 30, 10))
+
+
+def _minus_1min(hhmmss: str) -> str | None:
+    try:
+        total = int(hhmmss[0:2]) * 60 + int(hhmmss[2:4]) - 1
+    except (ValueError, IndexError):
+        return None
+    return None if total < 0 else f"{total // 60:02d}{total % 60:02d}00"
+
+
+def _fetch_1min(symbol: str, base_hour: str, market: str, past: str, pages: int) -> list[dict]:
+    """1분봉을 pages번 뒤로 이어받아 (date,time)로 중복 제거 후 오름차순 반환."""
+    seen: dict[tuple, dict] = {}
+    cur = base_hour
+    prev_earliest: str | None = None
+    for _ in range(pages):
+        _, df2 = _kis(
+            _ds().inquire_time_itemchartprice,
+            env_dv=_env(),
+            fid_cond_mrkt_div_code=market,
+            fid_input_iscd=symbol,
+            fid_input_hour_1=cur,
+            fid_pw_data_incu_yn=past,
+            fid_etc_cls_code="",
+        )
+        if df2 is None or df2.empty:
+            break
+        rows = [r for r in df2.to_dict("records") if r.get("stck_cntg_hour")]
+        if not rows:
+            break
+        for r in rows:
+            seen[(r.get("stck_bsop_date"), r.get("stck_cntg_hour"))] = r
+        earliest = min(r["stck_cntg_hour"] for r in rows)
+        # 진행 없음(이전 페이지보다 더 과거로 못 감) → 중단. 벽시계 base_hour와 데이터
+        # 시간대가 다른 장외에도 안전하게 데이터 자체 기준으로 walk-back 한다.
+        if prev_earliest is not None and earliest >= prev_earliest:
+            break
+        if earliest <= "090100":  # 장 시작 도달
+            break
+        prev_earliest = earliest
+        nxt = _minus_1min(earliest)
+        if not nxt:
+            break
+        cur = nxt
+    ordered = [seen[k] for k in sorted(seen.keys())]
+    return [
         {
-            "date": row.get("stck_bsop_date"),
-            "time": row.get("stck_cntg_hour"),  # HHMMSS
-            "open": _to_int(row.get("stck_oprc")),
-            "high": _to_int(row.get("stck_hgpr")),
-            "low": _to_int(row.get("stck_lwpr")),
-            "close": _to_int(row.get("stck_prpr")),
-            "volume": _to_int(row.get("cntg_vol")),
+            "date": r.get("stck_bsop_date"),
+            "time": r.get("stck_cntg_hour"),
+            "open": _to_int(r.get("stck_oprc")),
+            "high": _to_int(r.get("stck_hgpr")),
+            "low": _to_int(r.get("stck_lwpr")),
+            "close": _to_int(r.get("stck_prpr")),
+            "volume": _to_int(r.get("cntg_vol")),
         }
-        for row in df2.to_dict("records")
-        if row.get("stck_cntg_hour")
+        for r in ordered
     ]
-    return {"symbol": symbol, "period": "M1", "candles": candles}
+
+
+def _aggregate_minutes(ones: list[dict], interval: int) -> list[dict]:
+    """1분봉을 interval분 버킷으로 집계(OHLCV). 버킷 시각=버킷 시작시각."""
+    buckets: dict[tuple, dict] = {}
+    order: list[tuple] = []
+    for c in ones:
+        t = c["time"]
+        mins = int(t[0:2]) * 60 + int(t[2:4])
+        b = mins // interval
+        key = (c["date"], b)
+        bk = buckets.get(key)
+        if bk is None:
+            start = b * interval
+            buckets[key] = {
+                "date": c["date"],
+                "time": f"{start // 60:02d}{start % 60:02d}00",
+                "open": c["open"],
+                "high": c["high"],
+                "low": c["low"],
+                "close": c["close"],
+                "volume": c["volume"] or 0,
+            }
+            order.append(key)
+        else:
+            if c["high"] is not None:
+                bk["high"] = c["high"] if bk["high"] is None else max(bk["high"], c["high"])
+            if c["low"] is not None:
+                bk["low"] = c["low"] if bk["low"] is None else min(bk["low"], c["low"])
+            if c["close"] is not None:
+                bk["close"] = c["close"]
+            bk["volume"] = (bk["volume"] or 0) + (c["volume"] or 0)
+    return [buckets[k] for k in sorted(order)]
+
+
+def minute_chart(
+    symbol: str, base_hour: str, market: str = "J", past: str = "Y", interval: int = 1
+) -> dict:
+    """분봉. interval(분)=1/3/5/10/30/60. 1분봉을 모아 N분으로 집계한다."""
+    ones = _fetch_1min(symbol, base_hour, market, past, _pages_for(interval))
+    candles = ones if interval <= 1 else _aggregate_minutes(ones, interval)
+    return {"symbol": symbol, "period": f"M{interval}", "candles": candles}
 
 
 # ========== P3: 잔고 / 주문 ==========

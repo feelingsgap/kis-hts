@@ -39,10 +39,17 @@ const MA = [
 ];
 const PERIODS: { key: ChartPeriod; label: string }[] = [
   { key: "M1", label: "1분" },
+  { key: "M3", label: "3분" },
+  { key: "M5", label: "5분" },
+  { key: "M10", label: "10분" },
+  { key: "M30", label: "30분" },
+  { key: "M60", label: "60분" },
   { key: "D", label: "일" },
   { key: "W", label: "주" },
   { key: "M", label: "월" },
 ];
+// "M"은 월봉, "M<숫자>"는 분봉. 분봉 간격(분)을 반환(아니면 0).
+const minuteInterval = (p: ChartPeriod): number => (/^M\d+$/.test(p) ? parseInt(p.slice(1), 10) : 0);
 const THEME = {
   axis: "#29313c",
   split: "rgba(60,70,82,0.35)",
@@ -372,8 +379,11 @@ export function Chart({ symbol }: { symbol: string }) {
     // 종목/기간 전환 시 옛 캔들·로드정보 초기화 → stale 틱이 옛 봉에 반영되는 튀임 방지
     candlesRef.current = [];
     loadedRef.current = null;
-    const minute = period === "M1";
-    const req = minute ? api.chartMinute(symbol) : api.chartDaily(symbol, period);
+    const iv = minuteInterval(period);
+    const minute = iv > 0;
+    const req = minute
+      ? api.chartMinute(symbol, iv)
+      : api.chartDaily(symbol, period as "D" | "W" | "M");
     req
       .then((res) => {
         if (!alive || !chartRef.current) return;
@@ -398,7 +408,9 @@ export function Chart({ symbol }: { symbol: string }) {
     panelsRef.current = panels;
     const cs = candlesRef.current;
     if (!chartRef.current || !cs.length) return;
-    chartRef.current.setOption(buildOption(cs, period === "M1", panels), { notMerge: true });
+    chartRef.current.setOption(buildOption(cs, minuteInterval(period) > 0, panels), {
+      notMerge: true,
+    });
   }, [panels, period]);
 
   // 실시간 봉 갱신 (로드 완료된 종목의 틱만 반영 → 종목전환 스파이크 방지)

@@ -57,9 +57,10 @@ def get_minute_chart(
     market: str = "J",
     base_hour: str | None = Query(None, pattern="^[0-9]{6}$"),
     past: str = Query("Y", pattern="^[YN]$"),
+    interval: int = Query(1, ge=1, le=60),  # 분 단위: 1/3/5/10/30/60
 ) -> dict:
     base_hour = base_hour or datetime.now().strftime("%H%M%S")
-    return rest.minute_chart(symbol, base_hour, market, past)
+    return rest.minute_chart(symbol, base_hour, market, past, interval)
 
 
 @router.get("/index")

@@ -79,7 +79,8 @@ export interface ChartResp {
   candles: Candle[];
 }
 
-export type ChartPeriod = "M1" | "D" | "W" | "M";
+// 분봉(M<분>)과 일/주/월. "M"은 월봉, "M1"~"M60"은 분봉.
+export type ChartPeriod = "M1" | "M3" | "M5" | "M10" | "M30" | "M60" | "D" | "W" | "M";
 
 // ---- P3: 잔고/주문 ----
 export interface BalanceSummary {
