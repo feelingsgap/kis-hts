@@ -1,6 +1,7 @@
 // 실시간 시세 + 계좌 상태 (zustand)
 import { create } from "zustand";
 import { api } from "./api";
+import { loadPref, savePref } from "./persist";
 import type { BalanceResp, OrderBook, PendingOrder, Quote, Side, WsMessage } from "./types";
 
 export interface Toast {
@@ -45,27 +46,36 @@ let toastSeq = 0;
 export const useStore = create<State>((set, get) => ({
   symbols: [],
   names: {},
-  selected: null,
+  selected: loadPref<string | null>("selected", null),
   quotes: {},
   orderbooks: {},
   wsConnected: false,
   balance: null,
   pending: [],
-  orderDraft: { side: "buy", price: null },
+  orderDraft: { side: loadPref<Side>("order.side", "buy"), price: null },
   toasts: [],
 
   setWatchlist: (symbols, names) =>
     set((st) => ({
       symbols,
       names: names ? { ...st.names, ...names } : st.names,
-      selected: st.selected ?? symbols[0] ?? null,
+      // 저장된 선택 종목이 관심목록에 있으면 유지, 아니면 첫 종목
+      selected: st.selected && symbols.includes(st.selected) ? st.selected : symbols[0] ?? null,
     })),
   mergeNames: (names) => set((st) => ({ names: { ...st.names, ...names } })),
-  select: (s) => set({ selected: s }),
+  select: (s) => {
+    savePref("selected", s);
+    set({ selected: s });
+  },
   setQuote: (q) => set((st) => ({ quotes: { ...st.quotes, [q.symbol]: q } })),
   setOrderBook: (o) => set((st) => ({ orderbooks: { ...st.orderbooks, [o.symbol]: o } })),
   setWsConnected: (c) => set({ wsConnected: c }),
-  setOrderDraft: (d) => set((st) => ({ orderDraft: { ...st.orderDraft, ...d } })),
+  setOrderDraft: (d) =>
+    set((st) => {
+      const next = { ...st.orderDraft, ...d };
+      if (d.side !== undefined) savePref("order.side", next.side);
+      return { orderDraft: next };
+    }),
 
   refreshAccount: async () => {
     const [balance, pending] = await Promise.all([

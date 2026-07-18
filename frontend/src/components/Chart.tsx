@@ -13,6 +13,7 @@ import { CanvasRenderer } from "echarts/renderers";
 import type { EChartsCoreOption, EChartsType } from "echarts/core";
 import { api } from "../api";
 import { useStore } from "../store";
+import { usePersisted } from "../persist";
 import { bollinger, macd, rsi, sma } from "../indicators";
 import type { Candle, ChartPeriod } from "../types";
 
@@ -339,9 +340,14 @@ export function Chart({ symbol }: { symbol: string }) {
   const chartRef = useRef<EChartsType | null>(null);
   const candlesRef = useRef<Candle[]>([]);
   const loadedRef = useRef<{ symbol: string; period: ChartPeriod } | null>(null); // 현재 렌더된 종목/기간
-  const [period, setPeriod] = useState<ChartPeriod>("D");
+  const [period, setPeriod] = usePersisted<ChartPeriod>("chart.period", "D");
   const [empty, setEmpty] = useState(false);
-  const [panels, setPanels] = useState<Panels>({ vol: true, rsi: true, macd: true, bb: true });
+  const [panels, setPanels] = usePersisted<Panels>("chart.panels", {
+    vol: true,
+    rsi: true,
+    macd: true,
+    bb: true,
+  });
   const panelsRef = useRef(panels); // 재조회 없이 최신 패널 참조
 
   const tickPrice = useStore((s) => s.quotes[symbol]?.price ?? null);

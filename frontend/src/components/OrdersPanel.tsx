@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { usePersisted } from "../persist";
 import { useStore } from "../store";
 import { PendingOrders } from "./PendingOrders";
 import { FilledOrders } from "./FilledOrders";
@@ -8,7 +8,7 @@ type Tab = "pending" | "filled";
 // .ledger 우측 셀: [미체결][체결내역] 탭 패널
 export function OrdersPanel() {
   const pendingCount = useStore((s) => s.pending.length);
-  const [tab, setTab] = useState<Tab>("pending");
+  const [tab, setTab] = usePersisted<Tab>("orders.tab", "pending");
 
   return (
     <div className="tabpanel">

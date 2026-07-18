@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { usePersisted } from "../persist";
 import { Balance } from "./Balance";
 import { Ranking } from "./Ranking";
 import { Investor } from "./Investor";
@@ -12,7 +12,7 @@ const TABS: { key: Tab; label: string }[] = [
 
 // .ledger 좌측 셀: [잔고][순위][투자자] 탭 패널
 export function AccountPanel() {
-  const [tab, setTab] = useState<Tab>("bal");
+  const [tab, setTab] = usePersisted<Tab>("acct.tab", "bal");
   return (
     <div className="tabpanel">
       <div className="tab-head">
