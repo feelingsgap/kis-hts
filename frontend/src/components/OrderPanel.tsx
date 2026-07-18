@@ -3,18 +3,24 @@ import { api } from "../api";
 import { useStore } from "../store";
 import { name, num, snapToTick, tickSize } from "../format";
 import type { OrdDvsn, PsblOrder, Side } from "../types";
+import { ConfirmDialog } from "./OrderConfirm";
 
 export function OrderPanel({ symbol }: { symbol: string }) {
   const draft = useStore((s) => s.orderDraft);
   const setOrderDraft = useStore((s) => s.setOrderDraft);
   const refreshAccount = useStore((s) => s.refreshAccount);
   const curPrice = useStore((s) => s.quotes[symbol]?.price ?? null);
+  // 매도 가능수량: 잔고의 해당 종목 주문가능수량(미체결 매도분 반영)
+  const sellable = useStore(
+    (s) => s.balance?.holdings.find((h) => h.symbol === symbol)?.orderable_qty ?? 0,
+  );
 
   const [ordDvsn, setOrdDvsn] = useState<OrdDvsn>("00");
   const [qty, setQty] = useState<number>(1);
   const [psbl, setPsbl] = useState<PsblOrder | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
 
   const side = draft.side;
   const rawPrice = draft.price ?? curPrice ?? 0;
@@ -45,7 +51,26 @@ export function OrderPanel({ symbol }: { symbol: string }) {
     };
   }, [symbol, side, price, ordDvsn]);
 
-  const submit = async () => {
+  // 발주 전 검증 → 확인 모달
+  const openConfirm = () => {
+    setMsg(null);
+    if (ordDvsn === "00" && (!price || price <= 0)) {
+      setMsg({ ok: false, text: "가격을 입력하세요" });
+      return;
+    }
+    if (!qty || qty <= 0) {
+      setMsg({ ok: false, text: "수량을 확인하세요" });
+      return;
+    }
+    if (side === "sell" && sellable > 0 && qty > sellable) {
+      setMsg({ ok: false, text: `가능수량(${num(sellable)}주)을 초과합니다` });
+      return;
+    }
+    setConfirm(true);
+  };
+
+  const doPlace = async () => {
+    setConfirm(false);
     setBusy(true);
     setMsg(null);
     try {
@@ -63,6 +88,13 @@ export function OrderPanel({ symbol }: { symbol: string }) {
   const step = (dir: number) => {
     const base = snapToTick(draft.price ?? curPrice ?? 0);
     setOrderDraft({ price: Math.max(0, base + dir * tickSize(base)) });
+  };
+
+  // 수량 프리셋: 매수는 최대매수수량, 매도는 가능수량 기준 비율
+  const maxQty = side === "buy" ? psbl?.max_buy_qty ?? 0 : sellable;
+  const setPct = (pct: number) => {
+    const q = Math.floor((maxQty * pct) / 100);
+    if (q > 0) setQty(q);
   };
 
   return (
@@ -124,6 +156,14 @@ export function OrderPanel({ symbol }: { symbol: string }) {
           />
         </label>
 
+        <div className="op-presets">
+          {[25, 50, 100].map((p) => (
+            <button key={p} onClick={() => setPct(p)} disabled={maxQty <= 0}>
+              {side === "sell" && p === 100 ? "전량" : `${p}%`}
+            </button>
+          ))}
+        </div>
+
         <div className="op-info">
           {side === "buy" ? (
             <>
@@ -134,18 +174,43 @@ export function OrderPanel({ symbol }: { symbol: string }) {
             </>
           ) : (
             <>
+              <span>가능수량</span>
+              <b className="mono">{num(sellable)}주</b>
               <span>주문금액</span>
               <b className="mono">{num(price * qty)}원</b>
             </>
           )}
         </div>
 
-        <button className={`op-submit ${side}`} onClick={submit} disabled={busy}>
+        <button className={`op-submit ${side}`} onClick={openConfirm} disabled={busy}>
           {busy ? "처리 중…" : side === "buy" ? "매수 주문" : "매도 주문"}
         </button>
 
         {msg && <div className={`op-msg ${msg.ok ? "ok" : "err"}`}>{msg.text}</div>}
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          title={side === "buy" ? "매수 주문 확인" : "매도 주문 확인"}
+          rows={[
+            { label: "종목", value: `${name(symbol)} (${symbol})` },
+            { label: "구분", value: side === "buy" ? "매수" : "매도", tone: side === "buy" ? "up" : "down" },
+            { label: "유형", value: ordDvsn === "01" ? "시장가" : "지정가" },
+            { label: "가격", value: ordDvsn === "01" ? "시장가" : `${num(price)}원` },
+            { label: "수량", value: `${num(qty)}주` },
+            {
+              label: "주문금액",
+              value: ordDvsn === "01" ? "-" : `${num(price * qty)}원`,
+              strong: true,
+            },
+          ]}
+          confirmLabel={side === "buy" ? "매수 확정" : "매도 확정"}
+          tone={side}
+          busy={busy}
+          onConfirm={doPlace}
+          onClose={() => setConfirm(false)}
+        />
+      )}
     </div>
   );
 

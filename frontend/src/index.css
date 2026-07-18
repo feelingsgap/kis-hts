@@ -1317,3 +1317,166 @@ body {
     transform: translateY(0);
   }
 }
+
+/* ---- 수량 프리셋 (주문 패널) ---- */
+.op-presets {
+  display: flex;
+  gap: 6px;
+}
+.op-presets button {
+  flex: 1;
+  padding: 5px;
+  font-size: 11px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.op-presets button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.op-presets button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* op-seg 소형 변형 (정정 인라인) */
+.op-seg.sm button {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+/* ---- 주문 확인 모달 ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  animation: modal-fade 0.12s ease;
+}
+.modal-card {
+  width: min(340px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: modal-pop 0.14s ease;
+}
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.modal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+.modal-label {
+  color: var(--ink-3);
+}
+.modal-value {
+  color: var(--ink);
+  text-align: right;
+}
+.modal-value.up {
+  color: var(--up);
+}
+.modal-value.down {
+  color: var(--down);
+}
+.modal-value.strong {
+  font-weight: 700;
+  font-size: 14px;
+}
+.modal-extra {
+  margin-top: 12px;
+}
+.modal-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.modal-field input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+}
+.modal-field em {
+  font-style: normal;
+  color: var(--ink-2);
+  min-width: 52px;
+  text-align: right;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.modal-btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.modal-btn.cancel {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.modal-btn.confirm {
+  border: none;
+  color: #fff;
+}
+.modal-btn.confirm.buy {
+  background: var(--up);
+}
+.modal-btn.confirm.sell {
+  background: var(--down);
+}
+.modal-btn.confirm.neutral {
+  background: var(--border-strong);
+  color: var(--ink);
+}
+.modal-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

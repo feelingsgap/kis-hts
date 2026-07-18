@@ -74,8 +74,9 @@ export const api = {
     price: number;
     ord_dvsn: "00" | "01";
   }) => postJson<{ ok: boolean; order_no?: string }>("/api/order", body),
-  cancelOrder: (org_no: string, order_no: string) =>
-    postJson<{ ok: boolean }>("/api/order/cancel", { org_no, order_no, qty: 0 }),
+  // qty=0 이면 전량취소, 양수면 부분취소 (백엔드가 qty_all 자동 판정)
+  cancelOrder: (org_no: string, order_no: string, qty = 0) =>
+    postJson<{ ok: boolean }>("/api/order/cancel", { org_no, order_no, qty }),
   reviseOrder: (body: {
     org_no: string;
     order_no: string;
