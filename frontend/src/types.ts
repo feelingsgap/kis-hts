@@ -208,3 +208,13 @@ export interface WatchlistResp {
   symbols: string[];
   names: Record<string, string>;
 }
+
+// 업종 지수 (코스피/코스닥)
+export interface IndexRow {
+  code: string;
+  name: string;
+  value: number | null;
+  change: number | null;
+  change_rate: number | null;
+  sign: string | null;
+}

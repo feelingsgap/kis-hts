@@ -211,6 +211,33 @@ def _acct() -> tuple[str, str]:
     return token_manager.account  # (CANO, ACNT_PRDT_CD)
 
 
+# ---------- 업종 지수 (KOSPI/KOSDAQ) ----------
+# inquire_index_price는 env_dv를 받지 않고 단일 TR_ID. 시장="U", 종목=지수코드.
+_INDEX = {
+    "kospi": {"iscd": "0001", "name": "코스피"},
+    "kosdaq": {"iscd": "1001", "name": "코스닥"},
+    "kospi200": {"iscd": "2001", "name": "코스피200"},
+}
+
+
+def market_index(code: str) -> dict:
+    meta = _INDEX.get(code)
+    if not meta:
+        return {}
+    df = _kis(_ds().inquire_index_price, fid_cond_mrkt_div_code="U", fid_input_iscd=meta["iscd"])
+    if df is None or df.empty:
+        return {}
+    r = df.iloc[0].to_dict()
+    return {
+        "code": code,
+        "name": meta["name"],
+        "value": _to_float(_get(r, "bstp_nmix_prpr")),          # 지수 현재가
+        "change": _to_float(_get(r, "bstp_nmix_prdy_vrss")),    # 전일 대비
+        "change_rate": _to_float(_get(r, "bstp_nmix_prdy_ctrt")),  # 전일 대비율
+        "sign": _get(r, "prdy_vrss_sign"),                      # 1상한 2상승 3보합 4하한 5하락
+    }
+
+
 # ---------- 잔고 ----------
 def balance() -> dict:
     cano, prod = _acct()

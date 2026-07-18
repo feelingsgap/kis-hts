@@ -4,6 +4,7 @@ import type {
   ChartResp,
   FilledOrder,
   FluctRankRow,
+  IndexRow,
   InvestorResp,
   OrderBook,
   PendingOrder,
@@ -57,6 +58,7 @@ export const api = {
     getJson<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
   quote: (symbol: string) => getJson<Quote>(`/api/quote/${symbol}`),
   orderbook: (symbol: string) => getJson<OrderBook>(`/api/orderbook/${symbol}`),
+  marketIndex: () => getJson<IndexRow[]>("/api/index"),
   chartDaily: (symbol: string, period: "D" | "W" | "M") =>
     getJson<ChartResp>(`/api/chart/${symbol}/daily?period=${period}`),
   chartMinute: (symbol: string) => getJson<ChartResp>(`/api/chart/${symbol}/minute`),

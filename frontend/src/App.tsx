@@ -6,6 +6,7 @@ import { QuoteHeader } from "./components/QuoteHeader";
 import { OrderBook } from "./components/OrderBook";
 import { Chart } from "./components/Chart";
 import { OrderPanel } from "./components/OrderPanel";
+import { MarketBar } from "./components/MarketBar";
 import { AccountPanel } from "./components/AccountPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { Toasts } from "./components/Toast";
@@ -114,6 +115,7 @@ export default function App() {
             {env === "prod" ? "실전투자" : "모의투자"}
           </span>
         </div>
+        <MarketBar />
         <div className={`ws-status ${wsConnected ? "on" : "off"}`}>
           <span className="dot" /> {wsConnected ? "실시간 연결" : "연결 대기"}
         </div>

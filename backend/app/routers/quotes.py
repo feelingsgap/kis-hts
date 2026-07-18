@@ -60,3 +60,9 @@ def get_minute_chart(
 ) -> dict:
     base_hour = base_hour or datetime.now().strftime("%H%M%S")
     return rest.minute_chart(symbol, base_hour, market, past)
+
+
+@router.get("/index")
+def get_index() -> list[dict]:
+    """국내 주요 지수(코스피/코스닥) 현재값."""
+    return [x for x in (rest.market_index("kospi"), rest.market_index("kosdaq")) if x]
