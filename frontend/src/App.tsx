@@ -14,8 +14,16 @@ export default function App() {
   const symbols = useStore((s) => s.symbols);
   const selected = useStore((s) => s.selected);
   const wsConnected = useStore((s) => s.wsConnected);
-  const { setWatchlist, setQuote, setOrderBook, applyWs, setWsConnected, refreshAccount } =
-    useStore.getState();
+  const {
+    setWatchlist,
+    setQuote,
+    setOrderBook,
+    applyWs,
+    setWsConnected,
+    refreshAccount,
+    selectAdjacent,
+    setOrderDraft,
+  } = useStore.getState();
   const [env, setEnv] = useState<string>("vps");
 
   // 서버 env(vps 모의 / prod 실전) 조회 → 상단 배지 반영
@@ -52,6 +60,28 @@ export default function App() {
 
   // WS 연결
   useEffect(() => connectWs(applyWs, setWsConnected), [applyWs, setWsConnected]);
+
+  // 키보드 단축키: ↑/↓ 관심종목 이동, B/S 매수·매도 (입력창 포커스 시 무시)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectAdjacent(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectAdjacent(-1);
+      } else if (e.code === "KeyB") {
+        setOrderDraft({ side: "buy" });
+      } else if (e.code === "KeyS") {
+        setOrderDraft({ side: "sell" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectAdjacent, setOrderDraft]);
 
   // 계좌(잔고/미체결) 초기 + 주기 갱신
   useEffect(() => {

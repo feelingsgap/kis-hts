@@ -1480,3 +1480,82 @@ body {
     transform: scale(1);
   }
 }
+
+/* ---- 가격 알림 (현재가 헤더) ---- */
+.qh-right {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: none;
+}
+.qh-bell {
+  align-self: center;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qh-bell.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.qh-alert {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.qh-alert input {
+  width: 92px;
+  padding: 5px 8px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+}
+.qh-alert > button {
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.qh-alert > button.up {
+  color: var(--up);
+}
+.qh-alert > button.down {
+  color: var(--down);
+}
+.qh-alert-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.qh-alert-empty {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.qh-alert-chip {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.qh-alert-chip:hover {
+  color: var(--up);
+  border-color: var(--up);
+}

@@ -142,6 +142,14 @@ export interface OrderResult {
 export type Side = "buy" | "sell";
 export type OrdDvsn = "00" | "01"; // 00 지정가 / 01 시장가
 
+// 가격 알림 (앱 내, WS tick 도달 시 토스트 후 자동 해제)
+export interface PriceAlert {
+  id: number;
+  symbol: string;
+  price: number;
+  dir: "above" | "below"; // 이상 / 이하
+}
+
 // 체결내역
 export interface FilledOrder {
   order_no: string;
