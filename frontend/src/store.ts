@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { api } from "./api";
 import { loadPref, savePref } from "./persist";
+import { useSettings } from "./settings";
+import { beep } from "./sound";
 import type {
   BalanceResp,
   OrderBook,
@@ -25,6 +27,7 @@ interface State {
   quotes: Record<string, Quote>;
   orderbooks: Record<string, OrderBook>;
   wsConnected: boolean;
+  env: string; // 서버 투자환경 (vps 모의 / prod 실전) — health에서 채움
 
   // P3
   balance: BalanceResp | null;
@@ -45,6 +48,7 @@ interface State {
   setOrderBook: (o: OrderBook) => void;
   applyWs: (m: WsMessage) => void;
   setWsConnected: (c: boolean) => void;
+  setEnv: (e: string) => void;
   setOrderDraft: (d: Partial<{ side: Side; price: number | null }>) => void;
   refreshAccount: () => Promise<void>;
   refreshWatchlist: () => Promise<void>;
@@ -66,6 +70,7 @@ export const useStore = create<State>((set, get) => ({
   quotes: {},
   orderbooks: {},
   wsConnected: false,
+  env: "vps",
   balance: null,
   pending: [],
   orderDraft: { side: loadPref<Side>("order.side", "buy"), price: null },
@@ -94,6 +99,7 @@ export const useStore = create<State>((set, get) => ({
   setQuote: (q) => set((st) => ({ quotes: { ...st.quotes, [q.symbol]: q } })),
   setOrderBook: (o) => set((st) => ({ orderbooks: { ...st.orderbooks, [o.symbol]: o } })),
   setWsConnected: (c) => set({ wsConnected: c }),
+  setEnv: (e) => set({ env: e }),
   setOrderDraft: (d) =>
     set((st) => {
       const next = { ...st.orderDraft, ...d };
@@ -148,12 +154,14 @@ export const useStore = create<State>((set, get) => ({
 
   applyWs: (m) => {
     if (m.type === "fill") {
+      const { toastEnabled, soundEnabled } = useSettings.getState();
       const kind: Toast["kind"] = m.side === "buy" ? "buy" : "sell";
       const sideKr = m.side === "buy" ? "매수" : "매도";
       const nm = m.name || get().names[m.symbol] || m.symbol;
       const priceTxt = m.price != null ? m.price.toLocaleString("ko-KR") : "-";
       const qtyTxt = m.qty != null ? m.qty.toLocaleString("ko-KR") : "-";
-      get().pushToast(`체결 · ${nm} ${sideKr} ${qtyTxt}주 @${priceTxt}`, kind);
+      if (toastEnabled) get().pushToast(`체결 · ${nm} ${sideKr} ${qtyTxt}주 @${priceTxt}`, kind);
+      if (soundEnabled) beep(m.side);
       void get().refreshAccount();
       return;
     }
@@ -190,6 +198,7 @@ function checkAlerts(get: () => State, symbol: string, price: number | null): vo
     (a) => a.symbol === symbol && (a.dir === "above" ? price >= a.price : price <= a.price),
   );
   if (!hit.length) return;
+  if (useSettings.getState().soundEnabled) beep("alert");
   for (const a of hit) {
     const nm = names[a.symbol] || a.symbol;
     const arrow = a.dir === "above" ? "이상" : "이하";

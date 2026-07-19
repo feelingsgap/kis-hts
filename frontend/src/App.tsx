@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, connectWs } from "./api";
 import { useStore } from "./store";
+import { useSettings } from "./settings";
 import { Watchlist } from "./components/Watchlist";
 import { QuoteHeader } from "./components/QuoteHeader";
 import { OrderBook } from "./components/OrderBook";
@@ -10,22 +11,26 @@ import { MarketBar } from "./components/MarketBar";
 import { AccountPanel } from "./components/AccountPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { Toasts } from "./components/Toast";
+import { Settings } from "./components/Settings";
 
 export default function App() {
   const symbols = useStore((s) => s.symbols);
   const selected = useStore((s) => s.selected);
   const wsConnected = useStore((s) => s.wsConnected);
+  const env = useStore((s) => s.env);
+  const colorScheme = useSettings((s) => s.colorScheme);
+  const [showSettings, setShowSettings] = useState(false);
   const {
     setWatchlist,
     setQuote,
     setOrderBook,
     applyWs,
     setWsConnected,
+    setEnv,
     refreshAccount,
     selectAdjacent,
     setOrderDraft,
   } = useStore.getState();
-  const [env, setEnv] = useState<string>("vps");
 
   // 서버 env(vps 모의 / prod 실전) 조회 → 상단 배지 반영
   useEffect(() => {
@@ -33,7 +38,12 @@ export default function App() {
       .health()
       .then((h) => setEnv(h.env))
       .catch(() => {});
-  }, []);
+  }, [setEnv]);
+
+  // 등락 색상 관례 적용 (한국식/글로벌식) → :root[data-scheme]
+  useEffect(() => {
+    document.documentElement.dataset.scheme = colorScheme;
+  }, [colorScheme]);
 
   // 초기 로드: 관심종목 + 스냅샷 시세
   useEffect(() => {
@@ -116,8 +126,18 @@ export default function App() {
           </span>
         </div>
         <MarketBar />
-        <div className={`ws-status ${wsConnected ? "on" : "off"}`}>
-          <span className="dot" /> {wsConnected ? "실시간 연결" : "연결 대기"}
+        <div className="topbar-right">
+          <div className={`ws-status ${wsConnected ? "on" : "off"}`}>
+            <span className="dot" /> {wsConnected ? "실시간 연결" : "연결 대기"}
+          </div>
+          <button
+            className="settings-open"
+            onClick={() => setShowSettings(true)}
+            aria-label="설정"
+            title="설정"
+          >
+            ⚙
+          </button>
         </div>
       </header>
 
@@ -151,6 +171,7 @@ export default function App() {
         )}
       </div>
       <Toasts />
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

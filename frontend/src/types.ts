@@ -242,3 +242,28 @@ export interface NewsItem {
   title: string | null;
   source: string | null;
 }
+
+// 설정화면: 연결/계정 상태 (앱시크릿은 값 미반환 — has_secret로만)
+export interface SettingsStatus {
+  env: string; // vps | prod
+  svr: string; // vps | prod
+  env_dv: string; // demo | real
+  product: string;
+  account: string | null;
+  hts_id: string | null;
+  app_key_masked: string | null;
+  has_secret: boolean;
+  token_valid_until: string | null; // "YYYY-MM-DD HH:MM:SS"
+  rest_authed_at: string | null;
+  ws_authed_at: string | null;
+  ota_path: string | null;
+}
+
+// 자격증명 편집 입력 (빈 값은 변경 없음)
+export interface CredentialsIn {
+  app_key?: string;
+  app_secret?: string;
+  account?: string;
+  hts_id?: string;
+  prod?: string;
+}

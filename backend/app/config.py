@@ -75,6 +75,32 @@ def load_credentials(env: str) -> dict[str, str]:
     }
 
 
+_CRED_KEYS = {
+    "app_key": "KIS_APP_KEY",
+    "app_secret": "KIS_APP_SECRET",
+    "account": "KIS_ACCT",
+    "hts_id": "KIS_HTS_ID",
+    "prod": "KIS_PROD",
+}
+
+
+def save_credentials(env: str, updates: dict[str, str]) -> dict[str, str]:
+    """config/{env}/.env 에 KIS 자격증명을 병합 저장(제공된 필드만 갱신).
+
+    빈 문자열/미제공 필드는 기존 값을 유지한다(실수로 지워지지 않게).
+    파일은 gitignore 대상이라 절대 커밋되지 않는다. 저장 후 load_credentials(env)를 반환.
+    """
+    path = _REPO_ROOT / "config" / env / ".env"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    merged: dict[str, str] = {k: v for k, v in (dotenv_values(path) if path.exists() else {}).items() if v is not None}
+    for field, envk in _CRED_KEYS.items():
+        val = (updates.get(field) or "").strip()
+        if val:
+            merged[envk] = val
+    path.write_text("".join(f"{k}={v}\n" for k, v in merged.items()), encoding="utf-8")
+    return load_credentials(env)
+
+
 def bootstrap_open_trading_api() -> Path:
     """open-trading-api 경로를 찾아 sys.path에 등록하고 그 경로를 반환.
 

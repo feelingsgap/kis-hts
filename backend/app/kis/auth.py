@@ -9,12 +9,21 @@
 """
 from __future__ import annotations
 
+import json
+import os
 import threading
 from datetime import datetime, timedelta
 
 from app.config import bootstrap_open_trading_api, get_settings, load_credentials
 
 _ka = None  # kis_auth 모듈 지연 로딩 캐시
+
+
+def _mask(v: str | None) -> str | None:
+    """자격증명 표시용 마스킹 (앞 6 + … + 뒤 2). 짧으면 전부 가림."""
+    if not v:
+        return None
+    return f"{v[:6]}…{v[-2:]}" if len(v) > 8 else "•" * len(v)
 
 
 def _apply_repo_credentials(ka) -> None:
@@ -130,6 +139,64 @@ class TokenManager:
             "ws_authed_at": self._ws_authed_at.isoformat() if self._ws_authed_at else None,
             "account": self.account if self._rest_authed_at else None,
         }
+
+    # ---- 설정화면용 상세 상태/제어 ----
+    def token_valid_until(self) -> str | None:
+        """토큰 캐시 파일(valid-date)에서 만료일시 문자열을 읽는다. 없으면 None."""
+        ka = _load_ka()
+        try:
+            self._isolate_token_cache(ka)
+            with open(ka.token_tmp, encoding="utf-8") as f:
+                return json.load(f).get("valid-date")
+        except (OSError, ValueError, KeyError):
+            return None
+
+    def settings_status(self) -> dict:
+        """설정화면용 상세 상태. 앱키는 마스킹, 앱시크릿은 설정 여부만(값 미반환)."""
+        s = self._settings
+        creds = load_credentials(s.env)
+        out: dict = {
+            "env": s.env,
+            "svr": s.svr,
+            "env_dv": s.env_dv,
+            "product": s.product,
+            "account": None,
+            "hts_id": None,
+            "app_key_masked": None,
+            "has_secret": bool(creds.get("app_secret")),
+            "token_valid_until": self.token_valid_until(),
+            "rest_authed_at": self._rest_authed_at.isoformat() if self._rest_authed_at else None,
+            "ws_authed_at": self._ws_authed_at.isoformat() if self._ws_authed_at else None,
+        }
+        try:
+            env = self.trenv
+            out["account"] = env.my_acct
+            out["hts_id"] = env.my_htsid
+            out["app_key_masked"] = _mask(env.my_app)
+        except Exception:  # noqa: BLE001 (자격증명 미설정 시 빈 상태 반환)
+            pass
+        return out
+
+    def refresh_token(self) -> None:
+        """토큰 캐시를 지우고 강제 재인증(KIS는 6시간 내 동일 토큰 반환할 수 있음)."""
+        ka = _load_ka()
+        with self._lock:
+            self._isolate_token_cache(ka)
+            try:
+                os.remove(ka.token_tmp)
+            except OSError:
+                pass
+            ka.auth(svr=self._settings.svr, product=self._settings.product)
+            self._rest_authed_at = datetime.now()
+
+    def apply_credentials(self) -> None:
+        """repo config/{env}/.env 를 재적용하고 재인증한다(자격증명 편집 반영)."""
+        ka = _load_ka()
+        _apply_repo_credentials(ka)
+        with self._lock:
+            self._isolate_token_cache(ka)
+            ka.auth(svr=self._settings.svr, product=self._settings.product)
+            self._rest_authed_at = datetime.now()
 
 
 # 프로세스 단일 인스턴스 (모듈 전역 kis_auth 상태와 1:1 대응)

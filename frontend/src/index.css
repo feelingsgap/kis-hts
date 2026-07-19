@@ -19,6 +19,15 @@
   --right-col: 300px; /* 호가·매수/매도 우측 컬럼 폭(정렬 유지) — 좁혀서 차트/원장 확대 */
 }
 
+/* 등락 색상 관례(설정: 화면). 기본 :root = 한국식(상승red/하락blue).
+   글로벌식 = 상승green/하락red. App이 <html data-scheme>를 설정한다. */
+:root[data-scheme="global"] {
+  --up: #22c55e;
+  --down: #ef4444;
+  --up-bg: rgba(34, 197, 94, 0.14);
+  --down-bg: rgba(239, 68, 68, 0.14);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1716,4 +1725,319 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ==== 설정 (⚙ 버튼 + 모달) ==== */
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.settings-open {
+  font-size: 16px;
+  line-height: 1;
+  padding: 5px 8px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.settings-open:hover {
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+
+.settings-card {
+  width: min(440px, 94vw);
+  max-height: 88vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-head .modal-title {
+  margin: 0;
+}
+.settings-x {
+  font-size: 13px;
+  color: var(--ink-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+.settings-x:hover {
+  color: var(--ink);
+}
+.settings-body {
+  overflow-y: auto;
+  padding: 6px 18px 18px;
+}
+
+.set-sec {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.set-sec:last-child {
+  border-bottom: none;
+}
+.set-sec-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-height: 30px;
+}
+.set-row + .set-row {
+  margin-top: 8px;
+}
+.set-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+/* 상태(읽기 전용) */
+.set-status {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.set-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.set-stat-label {
+  color: var(--ink-3);
+}
+.set-stat-value {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* 자격증명 편집 */
+.set-cred-note {
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.set-cred-note.muted {
+  margin-top: 10px;
+  margin-bottom: 0;
+  opacity: 0.8;
+}
+.set-cred-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.set-cred-row span {
+  min-width: 74px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.set-cred-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.set-cred-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.set-cred-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.set-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.set-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+.set-btn.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.set-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.set-cred-actions .set-btn {
+  flex: 1;
+}
+.set-msg {
+  margin-top: 10px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.set-msg.ok {
+  color: #38d39f;
+  background: rgba(56, 211, 159, 0.12);
+}
+.set-msg.err {
+  color: var(--up);
+  background: var(--up-bg);
+}
+
+/* 수량 프리셋 */
+.set-presets {
+  display: flex;
+  gap: 6px;
+}
+.set-presets input {
+  width: 52px;
+  padding: 6px 8px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* 토글 스위치 */
+.set-toggle {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: none;
+  background: var(--border-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex: none;
+}
+.set-toggle.on {
+  background: var(--accent);
+}
+.set-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.set-toggle.on .set-toggle-knob {
+  transform: translateX(18px);
+}
+
+/* 색상 관례 선택 */
+.set-scheme {
+  display: flex;
+  gap: 8px;
+}
+.set-scheme-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.set-scheme-btn.on {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.set-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* 알림 목록 */
+.set-alerts {
+  margin-top: 12px;
+}
+.set-alerts-head {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.set-empty {
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 8px 0;
+}
+.set-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+.set-alert-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.set-alert-name b {
+  color: var(--ink);
+}
+.set-alert-name em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.set-alert-del {
+  font-size: 11px;
+  color: var(--ink-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.set-alert-del:hover {
+  color: var(--up);
 }

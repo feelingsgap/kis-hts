@@ -2,6 +2,7 @@
 import type {
   BalanceResp,
   ChartResp,
+  CredentialsIn,
   Financial,
   FilledOrder,
   FluctRankRow,
@@ -14,6 +15,7 @@ import type {
   PsblOrder,
   Quote,
   SearchResult,
+  SettingsStatus,
   VolumeRankRow,
   WatchlistResp,
   WsMessage,
@@ -99,6 +101,12 @@ export const api = {
   financials: (symbol: string) => getJson<Financial[]>(`/api/stock/financials/${symbol}`),
   opinions: (symbol: string) => getJson<Opinion[]>(`/api/stock/opinions/${symbol}`),
   news: (symbol: string) => getJson<NewsItem[]>(`/api/stock/news/${symbol}`),
+
+  // 설정: 연결/계정 상태 + 토큰 재발급 + 자격증명 편집
+  settingsStatus: () => getJson<SettingsStatus>("/api/settings/status"),
+  refreshToken: () => postJson<SettingsStatus>("/api/settings/token/refresh", {}),
+  saveCredentials: (body: CredentialsIn) =>
+    postJson<SettingsStatus>("/api/settings/credentials", body),
 };
 
 /** 로컬 WS에 연결하고 메시지를 콜백으로 전달. 끊기면 자동 재연결. */

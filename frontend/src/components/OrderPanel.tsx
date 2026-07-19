@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import { useSettings } from "../settings";
 import { name, num, snapToTick, tickSize } from "../format";
 import type { OrdDvsn, PsblOrder, Side } from "../types";
 import { ConfirmDialog } from "./OrderConfirm";
@@ -10,12 +11,16 @@ export function OrderPanel({ symbol }: { symbol: string }) {
   const setOrderDraft = useStore((s) => s.setOrderDraft);
   const refreshAccount = useStore((s) => s.refreshAccount);
   const curPrice = useStore((s) => s.quotes[symbol]?.price ?? null);
+  const isProd = useStore((s) => s.env) === "prod";
   // 매도 가능수량: 잔고의 해당 종목 주문가능수량(미체결 매도분 반영)
   const sellable = useStore(
     (s) => s.balance?.holdings.find((h) => h.symbol === symbol)?.orderable_qty ?? 0,
   );
+  // 설정: 수량 프리셋, 확인창(실전은 강제 ON)
+  const qtyPresets = useSettings((s) => s.qtyPresets);
+  const confirmEnabled = useSettings((s) => s.confirmEnabled);
 
-  const [ordDvsn, setOrdDvsn] = useState<OrdDvsn>("00");
+  const [ordDvsn, setOrdDvsn] = useState<OrdDvsn>(() => useSettings.getState().orderDefaultType);
   const [qty, setQty] = useState<number>(1);
   const [psbl, setPsbl] = useState<PsblOrder | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -66,7 +71,9 @@ export function OrderPanel({ symbol }: { symbol: string }) {
       setMsg({ ok: false, text: `가능수량(${num(sellable)}주)을 초과합니다` });
       return;
     }
-    setConfirm(true);
+    // 실전(prod)은 오발주 방지로 확인창 강제, 모의는 설정을 따름
+    if (isProd || confirmEnabled) setConfirm(true);
+    else void doPlace();
   };
 
   const doPlace = async () => {
@@ -157,7 +164,7 @@ export function OrderPanel({ symbol }: { symbol: string }) {
         </label>
 
         <div className="op-presets">
-          {[25, 50, 100].map((p) => (
+          {qtyPresets.map((p) => (
             <button key={p} onClick={() => setPct(p)} disabled={maxQty <= 0}>
               {side === "sell" && p === 100 ? "전량" : `${p}%`}
             </button>
