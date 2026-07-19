@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import { useCached } from "../cache";
 import { dir, num, pct } from "../format";
 import type { FluctRankRow, VolumeRankRow } from "../types";
 
@@ -14,29 +15,23 @@ const TABS: { key: RankTab; label: string }[] = [
 ];
 
 // 순위 탭 본문 (외곽 박스/타이틀은 AccountPanel이 제공)
-export function Ranking() {
+export function Ranking({ refreshSignal = 0 }: { refreshSignal?: number }) {
   const select = useStore((s) => s.select);
   const mergeNames = useStore((s) => s.mergeNames);
   const [tab, setTab] = useState<RankTab>("volume");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(false);
+  // 순위는 시장 데이터라 30초 TTL 캐시(그 안에 재진입 시 재조회 안 함)
+  const { data, loading } = useCached<Row[]>(
+    `ranking:${tab}`,
+    () => (tab === "volume" ? api.rankingVolume() : api.rankingFluctuation(tab)),
+    30000,
+    refreshSignal,
+  );
+  const rows = data ?? [];
 
+  // 조회 결과의 종목명을 store에 병합 (관심종목 이름 폴백용)
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    const req = tab === "volume" ? api.rankingVolume() : api.rankingFluctuation(tab);
-    req
-      .then((r) => {
-        if (!alive) return;
-        setRows(r);
-        mergeNames(Object.fromEntries(r.map((x) => [x.symbol, x.name])));
-      })
-      .catch(() => alive && setRows([]))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [tab, mergeNames]);
+    if (data?.length) mergeNames(Object.fromEntries(data.map((x) => [x.symbol, x.name])));
+  }, [data, mergeNames]);
 
   const pick = (r: Row) => {
     mergeNames({ [r.symbol]: r.name });

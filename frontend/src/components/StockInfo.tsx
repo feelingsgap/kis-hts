@@ -1,37 +1,28 @@
-import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import { useCached } from "../cache";
 import { num } from "../format";
 import type { Financial, NewsItem, Opinion } from "../types";
 
-// 선택 종목 변경 시 fetcher를 호출해 결과/로딩 상태를 관리하는 공통 훅
-function useSymbolData<T>(fetcher: (symbol: string) => Promise<T[]>): {
-  rows: T[];
-  loading: boolean;
-} {
+// 선택 종목 데이터 캐시(종목별). 같은 종목이면 탭 재진입 시 재조회 안 함.
+function useSymbolData<T>(
+  kind: string,
+  fetcher: (symbol: string) => Promise<T[]>,
+  signal: number,
+): { rows: T[]; loading: boolean } {
   const selected = useStore((s) => s.selected);
-  const [rows, setRows] = useState<T[]>([]);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!selected) return;
-    let alive = true;
-    setLoading(true);
-    setRows([]);
-    fetcher(selected)
-      .then((r) => alive && setRows(r))
-      .catch(() => alive && setRows([]))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
-  return { rows, loading };
+  const { data, loading } = useCached<T[]>(
+    selected ? `${kind}:${selected}` : null,
+    () => fetcher(selected!),
+    0,
+    signal,
+  );
+  return { rows: data ?? [], loading };
 }
 
 // ---- 재무비율 ----
-export function Financials() {
-  const { rows, loading } = useSymbolData<Financial>(api.financials);
+export function Financials({ refreshSignal = 0 }: { refreshSignal?: number }) {
+  const { rows, loading } = useSymbolData<Financial>("financials", api.financials, refreshSignal);
   if (loading && !rows.length) return <div className="si-empty">불러오는 중…</div>;
   if (!rows.length) return <div className="si-empty">재무 데이터 없음</div>;
   return (
@@ -59,8 +50,8 @@ export function Financials() {
 }
 
 // ---- 투자의견 ----
-export function Opinions() {
-  const { rows, loading } = useSymbolData<Opinion>(api.opinions);
+export function Opinions({ refreshSignal = 0 }: { refreshSignal?: number }) {
+  const { rows, loading } = useSymbolData<Opinion>("opinions", api.opinions, refreshSignal);
   if (loading && !rows.length) return <div className="si-empty">불러오는 중…</div>;
   if (!rows.length) return <div className="si-empty">투자의견 없음</div>;
   return (
@@ -78,8 +69,8 @@ export function Opinions() {
 }
 
 // ---- 뉴스 ----
-export function StockNews() {
-  const { rows, loading } = useSymbolData<NewsItem>(api.news);
+export function StockNews({ refreshSignal = 0 }: { refreshSignal?: number }) {
+  const { rows, loading } = useSymbolData<NewsItem>("news", api.news, refreshSignal);
   if (loading && !rows.length) return <div className="si-empty">불러오는 중…</div>;
   if (!rows.length) return <div className="si-empty">뉴스 없음</div>;
   return (

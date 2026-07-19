@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { usePersisted } from "../persist";
+import { useStore } from "../store";
 import { Balance } from "./Balance";
 import { Ranking } from "./Ranking";
 import { Investor } from "./Investor";
@@ -19,6 +21,18 @@ const KEYS = new Set(TABS.map((t) => t.key));
 export function AccountPanel() {
   const [stored, setTab] = usePersisted<Tab>("acct.tab", "bal");
   const tab = KEYS.has(stored) ? stored : "bal"; // 옛 값("info") 등 무효 시 폴백
+  const refreshAccount = useStore((s) => s.refreshAccount);
+  const [nonce, setNonce] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+
+  // 활성 탭만 새로고침: 잔고는 계좌 폴링 재조회, 나머지는 캐시 무시 강제 조회(signal 증가)
+  const refresh = () => {
+    setSpinning(true);
+    setTimeout(() => setSpinning(false), 600);
+    if (tab === "bal") void refreshAccount();
+    else setNonce((n) => n + 1);
+  };
+
   return (
     <div className="tabpanel">
       <div className="tab-head">
@@ -31,13 +45,21 @@ export function AccountPanel() {
             {t.label}
           </button>
         ))}
+        <button
+          className={`tab-refresh ${spinning ? "spin" : ""}`}
+          onClick={refresh}
+          title="현재 탭 새로고침"
+          aria-label="새로고침"
+        >
+          ↻
+        </button>
       </div>
       {tab === "bal" && <Balance />}
-      {tab === "rank" && <Ranking />}
-      {tab === "invest" && <Investor />}
-      {tab === "fin" && <Financials />}
-      {tab === "opinion" && <Opinions />}
-      {tab === "news" && <StockNews />}
+      {tab === "rank" && <Ranking refreshSignal={nonce} />}
+      {tab === "invest" && <Investor refreshSignal={nonce} />}
+      {tab === "fin" && <Financials refreshSignal={nonce} />}
+      {tab === "opinion" && <Opinions refreshSignal={nonce} />}
+      {tab === "news" && <StockNews refreshSignal={nonce} />}
     </div>
   );
 }

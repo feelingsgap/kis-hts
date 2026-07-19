@@ -1690,3 +1690,30 @@ body {
   color: var(--ink-3);
   font-size: 10.5px;
 }
+
+/* ---- 탭 새로고침 버튼 ---- */
+.tab-refresh {
+  flex: none;
+  width: 34px;
+  padding: 10px 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.tab-refresh:hover {
+  color: var(--accent);
+}
+.tab-refresh.spin {
+  animation: tab-spin 0.6s linear;
+}
+@keyframes tab-spin {
+  from {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

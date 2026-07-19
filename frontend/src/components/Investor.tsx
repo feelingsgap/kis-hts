@@ -1,28 +1,19 @@
-import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import { useCached } from "../cache";
 import { dir, name, signed } from "../format";
 import type { InvestorRow } from "../types";
 
 // 투자자 탭 본문: 외국인/기관/개인 순매수 (외곽 박스/타이틀은 AccountPanel이 제공)
-export function Investor() {
+export function Investor({ refreshSignal = 0 }: { refreshSignal?: number }) {
   const selected = useStore((s) => s.selected);
-  const [rows, setRows] = useState<InvestorRow[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!selected) return;
-    let alive = true;
-    setLoading(true);
-    api
-      .investor(selected)
-      .then((res) => alive && setRows(res.recent ?? []))
-      .catch(() => alive && setRows([]))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [selected]);
+  const { data, loading } = useCached<InvestorRow[]>(
+    selected ? `investor:${selected}` : null,
+    () => api.investor(selected!).then((res) => res.recent ?? []),
+    0,
+    refreshSignal,
+  );
+  const rows = data ?? [];
 
   return (
     <>
