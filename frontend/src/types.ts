@@ -242,8 +242,3 @@ export interface NewsItem {
   title: string | null;
   source: string | null;
 }
-export interface StockInfoResp {
-  financials: Financial[];
-  opinions: Opinion[];
-  news: NewsItem[];
-}

@@ -2,16 +2,18 @@
 import type {
   BalanceResp,
   ChartResp,
+  Financial,
   FilledOrder,
   FluctRankRow,
   IndexRow,
   InvestorResp,
+  NewsItem,
+  Opinion,
   OrderBook,
   PendingOrder,
   PsblOrder,
   Quote,
   SearchResult,
-  StockInfoResp,
   VolumeRankRow,
   WatchlistResp,
   WsMessage,
@@ -94,7 +96,9 @@ export const api = {
   rankingFluctuation: (type: "up" | "down") =>
     getJson<FluctRankRow[]>(`/api/ranking/fluctuation?type=${type}`),
   investor: (symbol: string) => getJson<InvestorResp>(`/api/investor/${symbol}`),
-  stockInfo: (symbol: string) => getJson<StockInfoResp>(`/api/stock-info/${symbol}`),
+  financials: (symbol: string) => getJson<Financial[]>(`/api/stock/financials/${symbol}`),
+  opinions: (symbol: string) => getJson<Opinion[]>(`/api/stock/opinions/${symbol}`),
+  news: (symbol: string) => getJson<NewsItem[]>(`/api/stock/news/${symbol}`),
 };
 
 /** 로컬 WS에 연결하고 메시지를 콜백으로 전달. 끊기면 자동 재연결. */

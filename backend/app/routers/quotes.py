@@ -69,11 +69,19 @@ def get_index() -> list[dict]:
     return [x for x in (rest.market_index("kospi"), rest.market_index("kosdaq")) if x]
 
 
-@router.get("/stock-info/{symbol}")
-def get_stock_info(symbol: str, market: str = "J") -> dict:
-    """종목 기본 정보: 재무비율 / 투자의견 / 뉴스."""
-    return {
-        "financials": rest.stock_financials(symbol, market),
-        "opinions": rest.stock_opinions(symbol, market),
-        "news": rest.stock_news(symbol),
-    }
+@router.get("/stock/financials/{symbol}")
+def get_financials(symbol: str, market: str = "J") -> list[dict]:
+    """재무비율(ROE/EPS/BPS/부채비율/증가율)."""
+    return rest.stock_financials(symbol, market)
+
+
+@router.get("/stock/opinions/{symbol}")
+def get_opinions(symbol: str, market: str = "J") -> list[dict]:
+    """최근 증권사 투자의견."""
+    return rest.stock_opinions(symbol, market)
+
+
+@router.get("/stock/news/{symbol}")
+def get_news(symbol: str) -> list[dict]:
+    """종목 관련 뉴스 제목."""
+    return rest.stock_news(symbol)
