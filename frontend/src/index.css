@@ -15,6 +15,8 @@
 
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+
+  --right-col: 300px; /* 호가·매수/매도 우측 컬럼 폭(정렬 유지) — 좁혀서 차트/원장 확대 */
 }
 
 * {
@@ -127,7 +129,7 @@ body {
 .main-area {
   flex: 1;
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr) 348px;
+  grid-template-columns: 252px minmax(0, 1fr) var(--right-col);
   gap: 12px;
   min-height: 0;
   min-width: 0;
@@ -144,7 +146,7 @@ body {
 .bottom-area {
   height: 300px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 348px; /* [잔고·미체결] | [매수/매도] (호가창 폭에 정렬) */
+  grid-template-columns: minmax(0, 1fr) var(--right-col); /* [잔고·미체결] | [매수/매도] (호가창 폭에 정렬) */
   gap: 12px;
 }
 .bottom-area > * {
