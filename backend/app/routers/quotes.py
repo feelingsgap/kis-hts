@@ -67,3 +67,13 @@ def get_minute_chart(
 def get_index() -> list[dict]:
     """국내 주요 지수(코스피/코스닥) 현재값."""
     return [x for x in (rest.market_index("kospi"), rest.market_index("kosdaq")) if x]
+
+
+@router.get("/stock-info/{symbol}")
+def get_stock_info(symbol: str, market: str = "J") -> dict:
+    """종목 기본 정보: 재무비율 / 투자의견 / 뉴스."""
+    return {
+        "financials": rest.stock_financials(symbol, market),
+        "opinions": rest.stock_opinions(symbol, market),
+        "news": rest.stock_news(symbol),
+    }

@@ -11,6 +11,7 @@ import type {
   PsblOrder,
   Quote,
   SearchResult,
+  StockInfoResp,
   VolumeRankRow,
   WatchlistResp,
   WsMessage,
@@ -93,6 +94,7 @@ export const api = {
   rankingFluctuation: (type: "up" | "down") =>
     getJson<FluctRankRow[]>(`/api/ranking/fluctuation?type=${type}`),
   investor: (symbol: string) => getJson<InvestorResp>(`/api/investor/${symbol}`),
+  stockInfo: (symbol: string) => getJson<StockInfoResp>(`/api/stock-info/${symbol}`),
 };
 
 /** 로컬 WS에 연결하고 메시지를 콜백으로 전달. 끊기면 자동 재연결. */

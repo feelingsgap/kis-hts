@@ -1600,3 +1600,91 @@ body {
     display: none;
   }
 }
+
+/* ---- 종목 정보 (재무/의견/뉴스) ---- */
+.stock-info {
+  overflow-y: auto;
+  padding: 4px 2px;
+  font-size: 12px;
+}
+.si-empty,
+.si-none {
+  color: var(--ink-3);
+  font-size: 12px;
+  padding: 10px 4px;
+}
+.si-sec {
+  margin-bottom: 12px;
+}
+.si-sec h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.si-fin-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.si-fin-head {
+  color: var(--ink-3);
+  font-size: 11px;
+  border-bottom-color: var(--border-strong);
+}
+.si-op {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.si-op-date {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.si-op-member {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.si-op-opinion {
+  font-weight: 600;
+}
+.si-op-opinion.up {
+  color: var(--up);
+}
+.si-op-opinion.down {
+  color: var(--down);
+}
+.si-op-goal {
+  color: var(--ink);
+  min-width: 64px;
+  text-align: right;
+}
+.si-news {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.si-news-meta {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.si-news-title {
+  color: var(--ink);
+  line-height: 1.35;
+}
+.si-news-src {
+  grid-column: 2;
+  color: var(--ink-3);
+  font-size: 10.5px;
+}

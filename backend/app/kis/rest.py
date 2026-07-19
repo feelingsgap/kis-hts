@@ -315,6 +315,79 @@ def market_index(code: str) -> dict:
     }
 
 
+# ---------- 종목 정보 (재무비율 / 투자의견 / 뉴스) — 모두 모의 지원 확인 ----------
+def stock_financials(symbol: str, market: str = "J") -> list[dict]:
+    """최근 결산 재무비율(년). ROE/EPS/BPS/부채비율/증가율."""
+    df = _kis(
+        _ds().finance_financial_ratio,
+        fid_div_cls_code="0", fid_cond_mrkt_div_code=market, fid_input_iscd=symbol,
+    )
+    if df is None or df.empty:
+        return []
+    return [
+        {
+            "period": _get(r, "stac_yymm"),                     # 결산년월
+            "roe": _to_float(_get(r, "roe_val")),
+            "eps": _to_float(_get(r, "eps")),
+            "bps": _to_float(_get(r, "bps")),
+            "debt_ratio": _to_float(_get(r, "lblt_rate")),      # 부채비율
+            "sales_growth": _to_float(_get(r, "grs")),          # 매출액증가율
+            "profit_growth": _to_float(_get(r, "bsop_prfi_inrt")),  # 영업이익증가율
+        }
+        for r in df.to_dict("records")[:6]
+    ]
+
+
+def stock_opinions(symbol: str, market: str = "J") -> list[dict]:
+    """최근 90일 증권사 투자의견."""
+    from datetime import datetime as _dt, timedelta as _td
+
+    today = _dt.now()
+    start = (today - _td(days=90)).strftime("%Y%m%d")
+    df = _kis(
+        _ds().invest_opinion,
+        fid_cond_mrkt_div_code=market, fid_cond_scr_div_code="16633", fid_input_iscd=symbol,
+        fid_input_date_1=start, fid_input_date_2=today.strftime("%Y%m%d"),
+    )
+    if df is None or df.empty:
+        return []
+    out = []
+    for r in df.to_dict("records")[:15]:
+        if not _get(r, "invt_opnn"):
+            continue
+        out.append({
+            "date": _get(r, "stck_bsop_date"),
+            "opinion": _get(r, "invt_opnn"),        # 매수/중립/매도 등
+            "member": _get(r, "mbcr_name"),         # 회원사(증권사)
+            "goal_price": _to_int(_get(r, "hts_goal_prc")),  # 목표가
+        })
+    return out
+
+
+def stock_news(symbol: str) -> list[dict]:
+    """종목 관련 뉴스 제목(최근)."""
+    df = _kis(
+        _ds().news_title,
+        fid_news_ofer_entp_code="", fid_cond_mrkt_cls_code="", fid_input_iscd=symbol,
+        fid_titl_cntt="", fid_input_date_1="", fid_input_hour_1="",
+        fid_rank_sort_cls_code="", fid_input_srno="",
+    )
+    if df is None or df.empty:
+        return []
+    out = []
+    for r in df.to_dict("records")[:20]:
+        title = _get(r, "hts_pbnt_titl_cntt")
+        if not title:
+            continue
+        out.append({
+            "date": _get(r, "data_dt"),
+            "time": _get(r, "data_tm"),
+            "title": title,
+            "source": _get(r, "dorg"),              # 언론사
+        })
+    return out
+
+
 # ---------- 잔고 ----------
 def balance() -> dict:
     cano, prod = _acct()

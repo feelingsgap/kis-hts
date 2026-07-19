@@ -219,3 +219,31 @@ export interface IndexRow {
   change_rate: number | null;
   sign: string | null;
 }
+
+// 종목 정보 (재무/투자의견/뉴스)
+export interface Financial {
+  period: string | null; // YYYYMM
+  roe: number | null;
+  eps: number | null;
+  bps: number | null;
+  debt_ratio: number | null;
+  sales_growth: number | null;
+  profit_growth: number | null;
+}
+export interface Opinion {
+  date: string | null;
+  opinion: string | null; // 매수/중립/매도 등
+  member: string | null; // 증권사
+  goal_price: number | null;
+}
+export interface NewsItem {
+  date: string | null;
+  time: string | null;
+  title: string | null;
+  source: string | null;
+}
+export interface StockInfoResp {
+  financials: Financial[];
+  opinions: Opinion[];
+  news: NewsItem[];
+}

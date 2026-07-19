@@ -2,12 +2,14 @@ import { usePersisted } from "../persist";
 import { Balance } from "./Balance";
 import { Ranking } from "./Ranking";
 import { Investor } from "./Investor";
+import { StockInfo } from "./StockInfo";
 
-type Tab = "bal" | "rank" | "invest";
+type Tab = "bal" | "rank" | "invest" | "info";
 const TABS: { key: Tab; label: string }[] = [
   { key: "bal", label: "잔고" },
   { key: "rank", label: "순위" },
   { key: "invest", label: "투자자" },
+  { key: "info", label: "정보" },
 ];
 
 // .ledger 좌측 셀: [잔고][순위][투자자] 탭 패널
@@ -29,6 +31,7 @@ export function AccountPanel() {
       {tab === "bal" && <Balance />}
       {tab === "rank" && <Ranking />}
       {tab === "invest" && <Investor />}
+      {tab === "info" && <StockInfo />}
     </div>
   );
 }
