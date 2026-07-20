@@ -22,7 +22,15 @@ from app.config import get_settings
 from app.kis.auth import token_manager
 from app.kis.ws import ws_manager
 from app.realtime import hub
-from app.routers import account, analysis, orders, quotes, settings as settings_router, symbols
+from app.routers import (
+    account,
+    analysis,
+    notify,
+    orders,
+    quotes,
+    settings as settings_router,
+    symbols,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 settings = get_settings()
@@ -42,6 +50,7 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(symbols.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
+app.include_router(notify.router, prefix="/api")
 
 
 @app.on_event("startup")

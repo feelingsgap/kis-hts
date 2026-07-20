@@ -1994,6 +1994,17 @@ body {
   border-radius: 3px;
 }
 
+/* 소리 컨트롤(테스트 버튼 + 토글) */
+.set-sound-ctl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.set-sound-test {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
 /* 알림 목록 */
 .set-alerts {
   margin-top: 12px;

@@ -102,6 +102,9 @@ export const api = {
   opinions: (symbol: string) => getJson<Opinion[]>(`/api/stock/opinions/${symbol}`),
   news: (symbol: string) => getJson<NewsItem[]>(`/api/stock/news/${symbol}`),
 
+  // 음성 안내 (백엔드 macOS `say`)
+  say: (text: string) => postJson<{ ok: boolean }>("/api/say", { text }),
+
   // 설정: 연결/계정 상태 + 토큰 재발급 + 자격증명 편집
   settingsStatus: () => getJson<SettingsStatus>("/api/settings/status"),
   refreshToken: () => postJson<SettingsStatus>("/api/settings/token/refresh", {}),

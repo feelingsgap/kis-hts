@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
 import { useSettings } from "../settings";
+import { say } from "../sound";
 import { num } from "../format";
 import type { CredentialsIn, OrdDvsn, SettingsStatus } from "../types";
 
@@ -266,7 +267,12 @@ function AlertSection() {
       </div>
       <div className="set-row">
         <span>소리</span>
-        <Toggle on={soundEnabled} onChange={(v) => set("soundEnabled", v)} />
+        <div className="set-sound-ctl">
+          <button className="set-btn set-sound-test" onClick={() => say("매수 주문")} title="음성 미리듣기">
+            테스트
+          </button>
+          <Toggle on={soundEnabled} onChange={(v) => set("soundEnabled", v)} />
+        </div>
       </div>
       <div className="set-alerts">
         <div className="set-alerts-head">가격 알림 ({alerts.length})</div>

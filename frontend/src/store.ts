@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { api } from "./api";
 import { loadPref, savePref } from "./persist";
 import { useSettings } from "./settings";
-import { beep } from "./sound";
+import { say } from "./sound";
 import type {
   BalanceResp,
   OrderBook,
@@ -161,7 +161,7 @@ export const useStore = create<State>((set, get) => ({
       const priceTxt = m.price != null ? m.price.toLocaleString("ko-KR") : "-";
       const qtyTxt = m.qty != null ? m.qty.toLocaleString("ko-KR") : "-";
       if (toastEnabled) get().pushToast(`체결 · ${nm} ${sideKr} ${qtyTxt}주 @${priceTxt}`, kind);
-      if (soundEnabled) beep(m.side);
+      if (soundEnabled) say(m.side === "buy" ? "매수 주문" : "매도 주문");
       void get().refreshAccount();
       return;
     }
@@ -198,7 +198,7 @@ function checkAlerts(get: () => State, symbol: string, price: number | null): vo
     (a) => a.symbol === symbol && (a.dir === "above" ? price >= a.price : price <= a.price),
   );
   if (!hit.length) return;
-  if (useSettings.getState().soundEnabled) beep("alert");
+  if (useSettings.getState().soundEnabled) say("가격 알림");
   for (const a of hit) {
     const nm = names[a.symbol] || a.symbol;
     const arrow = a.dir === "above" ? "이상" : "이하";
