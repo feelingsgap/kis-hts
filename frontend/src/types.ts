@@ -49,11 +49,12 @@ export interface OrderBookMsg extends OrderBook {
   type: "orderbook";
 }
 
-// 실시간 체결통보
+// 실시간 체결통보 (event: accept 주문접수 / fill 체결)
 export interface FillMsg {
   type: "fill";
+  event: "accept" | "fill";
   symbol: string;
-  name: string;
+  name: string | null;
   side: "buy" | "sell";
   qty: number | null;
   price: number | null;

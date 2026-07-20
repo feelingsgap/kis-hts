@@ -5,8 +5,15 @@ import { dir, name, num, pct, signed } from "../format";
 export function Balance() {
   const balance = useStore((s) => s.balance);
   const select = useStore((s) => s.select);
+  const setOrderDraft = useStore((s) => s.setOrderDraft);
   const s = balance?.summary;
   const holdings = balance?.holdings ?? [];
+
+  // 보유 종목 클릭: 해당 종목으로 전환 + 주문패널을 매도로(보유잔량 바로 표시)
+  const pickHolding = (symbol: string) => {
+    select(symbol);
+    setOrderDraft({ side: "sell" });
+  };
 
   return (
     <>
@@ -39,7 +46,7 @@ export function Balance() {
           holdings.map((h) => {
             const d = dir(h.pnl);
             return (
-              <div key={h.symbol} className="bt-row" onClick={() => select(h.symbol)}>
+              <div key={h.symbol} className="bt-row" onClick={() => pickHolding(h.symbol)}>
                 <span className="bt-name">
                   <b>{h.name || name(h.symbol)}</b>
                   <em>{h.symbol}</em>

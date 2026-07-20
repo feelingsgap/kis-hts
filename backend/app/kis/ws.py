@@ -52,6 +52,27 @@ def _pad_columns(builder, extra: int = 24):
     return wrapped
 
 
+def _patch_cni_decrypt(ka) -> None:
+    """체결통보(H0STCNI0/9) 복호화 강제.
+
+    KIS 서버가 체결통보 구독 응답 헤더에 encrypt='N'을 주지만(복호화 키/iv는 output으로 제공)
+    실제 실시간 데이터는 '1|H0STCNI9|...' AES 암호화로 온다. 라이브러리(kis_auth.__subscriber)는
+    data_map[tr_id]['encrypt']=='Y'일 때만 복호화하므로, 그대로 두면 암호문을 CSV 파싱해
+    체결 필드(CNTG_YN/종목/구분 등)가 깨진다 → fill 미발행 → 체결통보 음성·즉시 잔고 갱신 안 됨.
+    add_data_map(모듈 전역)을 감싸 CNI tr_id의 encrypt를 'Y'로 승격한다(키/iv는 응답 값 사용)."""
+    if getattr(ka, "_cni_decrypt_patched", False):
+        return
+    _orig = ka.add_data_map
+
+    def _patched(tr_id, columns=None, encrypt=None, key=None, iv=None):
+        if encrypt is not None and tr_id in ("H0STCNI0", "H0STCNI9"):
+            encrypt = "Y"
+        return _orig(tr_id, columns=columns, encrypt=encrypt, key=key, iv=iv)
+
+    ka.add_data_map = _patched
+    ka._cni_decrypt_patched = True
+
+
 class KisWsManager:
     def __init__(self) -> None:
         self._thread: threading.Thread | None = None
@@ -85,6 +106,7 @@ class KisWsManager:
         token_manager.ensure_ws()
 
         ka = _load_ka()
+        _patch_cni_decrypt(ka)  # 체결통보 복호화 강제(encrypt='N' 응답 우회)
         import domestic_stock_functions_ws as ws_mod  # noqa: PLC0415
 
         kws = ka.KISWebSocket(api_url="/tryitout", max_retries=100000)  # 동적 재연결 위해 크게
@@ -173,11 +195,13 @@ class KisWsManager:
                 msg["exp_qty"] = _i(r.get("ANTC_CNQN"))
                 msg["exp_change_rate"] = _f(r.get("ANTC_CNTG_PRDY_CTRT"))
             return msg
-        if tr_id in ("H0STCNI0", "H0STCNI9"):  # 체결통보
-            if str(r.get("CNTG_YN")) != "2":  # 2:체결만 (1:주문접수 제외)
+        if tr_id in ("H0STCNI0", "H0STCNI9"):  # 체결통보 (CNTG_YN 1:주문접수 / 2:체결)
+            cntg_yn = str(r.get("CNTG_YN"))
+            if cntg_yn not in ("1", "2"):  # 그 외(정정/취소/거부 등)는 무시
                 return None
             return {
                 "type": "fill",
+                "event": "fill" if cntg_yn == "2" else "accept",  # 접수와 체결은 다른 이벤트
                 "symbol": r.get("STCK_SHRN_ISCD"),
                 "name": r.get("CNTG_ISNM40"),
                 "side": "buy" if str(r.get("SELN_BYOV_CLS")) == "02" else "sell",

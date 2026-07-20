@@ -108,11 +108,15 @@ export const useStore = create<State>((set, get) => ({
     }),
 
   refreshAccount: async () => {
+    // 실패(rate-limit 등)로 null이면 기존 값 유지 → 보유 종목이 깜빡였다 사라지는 현상 방지
     const [balance, pending] = await Promise.all([
       api.balance().catch(() => null),
-      api.pending().catch(() => []),
+      api.pending().catch(() => null),
     ]);
-    set({ balance, pending });
+    set((st) => ({
+      balance: balance ?? st.balance,
+      pending: pending ?? st.pending,
+    }));
   },
 
   refreshWatchlist: async () => {
@@ -158,11 +162,15 @@ export const useStore = create<State>((set, get) => ({
       const kind: Toast["kind"] = m.side === "buy" ? "buy" : "sell";
       const sideKr = m.side === "buy" ? "매수" : "매도";
       const nm = m.name || get().names[m.symbol] || m.symbol;
-      const priceTxt = m.price != null ? m.price.toLocaleString("ko-KR") : "-";
       const qtyTxt = m.qty != null ? m.qty.toLocaleString("ko-KR") : "-";
-      if (toastEnabled) get().pushToast(`체결 · ${nm} ${sideKr} ${qtyTxt}주 @${priceTxt}`, kind);
-      if (soundEnabled) say(m.side === "buy" ? "매수 주문" : "매도 주문");
-      void get().refreshAccount();
+      const accept = m.event === "accept"; // 접수 vs 체결
+      if (toastEnabled) {
+        const priceTxt =
+          m.price != null && m.price > 0 ? ` @${m.price.toLocaleString("ko-KR")}` : "";
+        get().pushToast(`${accept ? "접수" : "체결"} · ${nm} ${sideKr} ${qtyTxt}주${priceTxt}`, kind);
+      }
+      if (soundEnabled) say(accept ? `${sideKr} 주문 접수` : `${sideKr} 체결`);
+      void get().refreshAccount(); // 접수 → 미체결 갱신, 체결 → 잔고 갱신
       return;
     }
     if (m.type === "tick") {

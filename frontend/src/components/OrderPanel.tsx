@@ -12,10 +12,12 @@ export function OrderPanel({ symbol }: { symbol: string }) {
   const refreshAccount = useStore((s) => s.refreshAccount);
   const curPrice = useStore((s) => s.quotes[symbol]?.price ?? null);
   const isProd = useStore((s) => s.env) === "prod";
-  // 매도 가능수량: 잔고의 해당 종목 주문가능수량(미체결 매도분 반영)
-  const sellable = useStore(
-    (s) => s.balance?.holdings.find((h) => h.symbol === symbol)?.orderable_qty ?? 0,
-  );
+  // 매도 가능수량: 주문가능수량(미체결 매도분 반영) 우선, 0이면 보유수량으로 폴백
+  // (모의는 당일 매수분의 ord_psbl_qty가 0으로 오는 경우가 있어 보유분을 못 팔게 됨)
+  const holding = useStore((s) => s.balance?.holdings.find((h) => h.symbol === symbol));
+  const heldQty = holding?.qty ?? 0;
+  const orderableQty = holding?.orderable_qty ?? 0;
+  const sellable = orderableQty > 0 ? orderableQty : heldQty;
   // 설정: 수량 프리셋, 확인창(실전은 강제 ON)
   const qtyPresets = useSettings((s) => s.qtyPresets);
   const confirmEnabled = useSettings((s) => s.confirmEnabled);
