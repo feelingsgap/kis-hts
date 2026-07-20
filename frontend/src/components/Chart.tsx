@@ -68,10 +68,14 @@ interface Panels {
   bb: boolean;
 }
 
-function xlabel(c: Candle, minute: boolean): string {
-  const d = c.date;
-  if (minute && c.time) return `${c.time.slice(0, 2)}:${c.time.slice(2, 4)}`;
-  return `${d.slice(4, 6)}/${d.slice(6, 8)}`;
+// x축 라벨. 분봉은 HH:MM, 단 날짜가 바뀌는 첫 봉엔 MM/DD를 붙여 다일 구간을 구분.
+function xlabels(candles: Candle[], minute: boolean): string[] {
+  return candles.map((c, i) => {
+    const md = `${c.date.slice(4, 6)}/${c.date.slice(6, 8)}`;
+    if (!minute || !c.time) return md;
+    const hm = `${c.time.slice(0, 2)}:${c.time.slice(2, 4)}`;
+    return i > 0 && candles[i - 1].date === c.date ? hm : `${md} ${hm}`;
+  });
 }
 
 // 동적 그리드 배치: 캔들 + 활성 보조패널(거래량/RSI/MACD)
@@ -242,7 +246,7 @@ function buildSeries(candles: Candle[], idx: Record<string, number>, p: Panels):
 function buildOption(candles: Candle[], minute: boolean, p: Panels): EChartsCoreOption {
   const active = [p.vol ? "vol" : "", p.rsi ? "rsi" : "", p.macd ? "macd" : ""].filter(Boolean);
   const { grids, idx } = layout(active);
-  const dates = candles.map((c) => xlabel(c, minute));
+  const dates = xlabels(candles, minute);
   const nAxis = grids.length;
 
   const xAxis = grids.map((_, i) => ({
@@ -334,6 +338,9 @@ function buildOption(candles: Candle[], minute: boolean, p: Panels): EChartsCore
   };
 }
 
+// (종목,기간)별 캔들 캐시 — 전환 시 즉시 표시(빈 화면/스테일 차트 방지). 매 전환마다 백그라운드 최신화.
+const chartCache = new Map<string, Candle[]>();
+
 // 보조패널 토글 칩 정의
 const TOGGLES: { key: keyof Panels; label: string }[] = [
   { key: "bb", label: "볼린저" },
@@ -349,6 +356,7 @@ export function Chart({ symbol }: { symbol: string }) {
   const loadedRef = useRef<{ symbol: string; period: ChartPeriod } | null>(null); // 현재 렌더된 종목/기간
   const [period, setPeriod] = usePersisted<ChartPeriod>("chart.period", "D");
   const [empty, setEmpty] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [panels, setPanels] = usePersisted<Panels>("chart.panels", {
     vol: true,
     rsi: true,
@@ -357,7 +365,7 @@ export function Chart({ symbol }: { symbol: string }) {
   });
   const panelsRef = useRef(panels); // 재조회 없이 최신 패널 참조
 
-  const tickPrice = useStore((s) => s.quotes[symbol]?.price ?? null);
+  const lastTick = useStore((s) => s.lastTick);
 
   // 인스턴스 1회 생성
   useEffect(() => {
@@ -374,30 +382,49 @@ export function Chart({ symbol }: { symbol: string }) {
   }, []);
 
   // 데이터 로드 (종목/기간 변경 시에만 재조회). 지표 토글로는 재조회하지 않음.
+  // 캐시 있으면 즉시 표시(전환 즉시), 없으면 로딩 표시(스테일 차트 대신). 항상 백그라운드 최신화.
   useEffect(() => {
     let alive = true;
-    // 종목/기간 전환 시 옛 캔들·로드정보 초기화 → stale 틱이 옛 봉에 반영되는 튀임 방지
-    candlesRef.current = [];
-    loadedRef.current = null;
+    const key = `${symbol}:${period}`;
     const iv = minuteInterval(period);
     const minute = iv > 0;
+
+    const render = (candles: Candle[]) => {
+      candlesRef.current = candles;
+      loadedRef.current = { symbol, period };
+      setEmpty(candles.length === 0);
+      chartRef.current?.setOption(buildOption(candles, minute, panelsRef.current), { notMerge: true });
+    };
+
+    const cached = chartCache.get(key);
+    if (cached) {
+      setLoading(false);
+      if (chartRef.current) render(cached);
+    } else {
+      // 미캐시: 옛 캔들·로드정보 초기화(stale 틱이 옛 봉에 반영되는 튀임 방지) + 로딩 표시
+      candlesRef.current = [];
+      loadedRef.current = null;
+      setLoading(true);
+    }
+
     const req = minute
       ? api.chartMinute(symbol, iv)
       : api.chartDaily(symbol, period as "D" | "W" | "M");
     req
       .then((res) => {
-        if (!alive || !chartRef.current) return;
+        if (!alive) return;
         const candles = [...res.candles]
           .filter((c) => c.close != null)
           .sort((a, b) => (a.date + (a.time ?? "")).localeCompare(b.date + (b.time ?? "")));
-        candlesRef.current = candles;
-        loadedRef.current = { symbol, period };
-        setEmpty(candles.length === 0);
-        chartRef.current.setOption(buildOption(candles, minute, panelsRef.current), {
-          notMerge: true,
-        });
+        chartCache.set(key, candles);
+        setLoading(false);
+        if (chartRef.current) render(candles);
       })
-      .catch(() => alive && setEmpty(true));
+      .catch(() => {
+        if (!alive) return;
+        setLoading(false);
+        if (!cached) setEmpty(true);
+      });
     return () => {
       alive = false;
     };
@@ -413,22 +440,49 @@ export function Chart({ symbol }: { symbol: string }) {
     });
   }, [panels, period]);
 
-  // 실시간 봉 갱신 (로드 완료된 종목의 틱만 반영 → 종목전환 스파이크 방지)
+  // 실시간 봉 빌드 (틱 시각·체결량으로). 로드 완료된 현재 종목의 틱만 반영(종목전환 스파이크 방지).
+  // 분봉: 같은 분 버킷이면 마지막 봉 확장, 새 버킷이면 새 봉 append. 일/주/월봉: 마지막 봉 종가만.
   useEffect(() => {
-    if (tickPrice == null || !chartRef.current) return;
+    if (!lastTick || !chartRef.current) return;
     const loaded = loadedRef.current;
-    if (!loaded || loaded.symbol !== symbol) return; // 아직 새 종목 데이터 로드 전이면 무시
+    if (!loaded || loaded.symbol !== symbol || lastTick.symbol !== symbol) return;
+    const price = lastTick.price;
+    if (price == null) return;
     const cs = candlesRef.current;
     if (!cs.length) return;
+    const iv = minuteInterval(period);
     const last = cs[cs.length - 1];
-    last.close = tickPrice;
-    last.high = Math.max(last.high ?? tickPrice, tickPrice);
-    last.low = last.low ? Math.min(last.low, tickPrice) : tickPrice;
     const p = panelsRef.current;
-    const active = [p.vol ? "vol" : "", p.rsi ? "rsi" : "", p.macd ? "macd" : ""].filter(Boolean);
-    const { idx } = layout(active);
-    chartRef.current.setOption({ series: buildSeries(cs, idx, p) }, { notMerge: false });
-  }, [tickPrice, symbol]);
+
+    const rerenderSeries = () => {
+      const active = [p.vol ? "vol" : "", p.rsi ? "rsi" : "", p.macd ? "macd" : ""].filter(Boolean);
+      const { idx } = layout(active);
+      chartRef.current?.setOption({ series: buildSeries(cs, idx, p) }, { notMerge: false }); // zoom 보존
+    };
+    const extend = (bar: Candle) => {
+      bar.close = price;
+      bar.high = Math.max(bar.high ?? price, price);
+      bar.low = bar.low != null ? Math.min(bar.low, price) : price;
+    };
+
+    if (iv > 0 && lastTick.time && lastTick.time.length >= 4) {
+      const mins = parseInt(lastTick.time.slice(0, 2), 10) * 60 + parseInt(lastTick.time.slice(2, 4), 10);
+      const start = Math.floor(mins / iv) * iv;
+      const bucket = `${String(Math.floor(start / 60)).padStart(2, "0")}${String(start % 60).padStart(2, "0")}00`;
+      if (last.time === bucket) {
+        extend(last);
+        last.volume = (last.volume ?? 0) + (lastTick.vol ?? 0);
+        rerenderSeries();
+      } else if (bucket > (last.time ?? "")) {
+        cs.push({ date: last.date, time: bucket, open: price, high: price, low: price, close: price, volume: lastTick.vol ?? 0 });
+        if (cs.length > 400) cs.shift();
+        chartRef.current.setOption(buildOption(cs, true, p), { notMerge: true }); // 새 봉 → x축 갱신
+      }
+    } else if (iv === 0) {
+      extend(last);
+      rerenderSeries();
+    }
+  }, [lastTick, symbol, period]);
 
   const toggle = (k: keyof Panels) => setPanels((p) => ({ ...p, [k]: !p[k] }));
 
@@ -462,7 +516,11 @@ export function Chart({ symbol }: { symbol: string }) {
         </div>
       </div>
       <div className="chart-canvas" ref={box} />
-      {empty && <div className="chart-empty">데이터 없음 (장 시작 후 또는 다른 기간 선택)</div>}
+      {loading ? (
+        <div className="chart-empty">불러오는 중…</div>
+      ) : (
+        empty && <div className="chart-empty">데이터 없음 (장 시작 후 또는 다른 기간 선택)</div>
+      )}
     </div>
   );
 }

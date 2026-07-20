@@ -40,6 +40,9 @@ interface State {
   // 가격 알림
   alerts: PriceAlert[];
 
+  // 마지막 체결틱 (차트가 시각·체결량으로 실시간 봉을 빌드) — 매 틱 갱신
+  lastTick: { symbol: string; time: string | null; price: number | null; vol: number | null } | null;
+
   setWatchlist: (symbols: string[], names?: Record<string, string>) => void;
   mergeNames: (names: Record<string, string>) => void;
   select: (s: string) => void;
@@ -76,6 +79,7 @@ export const useStore = create<State>((set, get) => ({
   orderDraft: { side: loadPref<Side>("order.side", "buy"), price: null },
   toasts: [],
   alerts: initialAlerts,
+  lastTick: null,
 
   setWatchlist: (symbols, names) =>
     set((st) => ({
@@ -184,7 +188,10 @@ export const useStore = create<State>((set, get) => ({
           sign: m.sign,
           volume: m.acml_vol,
         };
-        return { quotes: { ...st.quotes, [m.symbol]: q } };
+        return {
+          quotes: { ...st.quotes, [m.symbol]: q },
+          lastTick: { symbol: m.symbol, time: m.time, price: m.price, vol: m.cntg_vol },
+        };
       });
       checkAlerts(get, m.symbol, m.price);
       return;

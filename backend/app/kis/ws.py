@@ -17,8 +17,10 @@ import asyncio
 import functools
 import logging
 import threading
+from datetime import datetime
 
 from app.config import get_settings
+from app.kis import bars
 from app.kis.auth import _load_ka, token_manager
 from app.realtime import hub
 
@@ -151,6 +153,16 @@ class KisWsManager:
             pass
         if df is None or df.empty:
             return
+        if tr_id == "H0STCNT0":  # 체결틱 → 1분봉 스토어에 누적(모든 레코드)
+            today = datetime.now().strftime("%Y%m%d")
+            for row in df.to_dict("records"):
+                bars.on_tick(
+                    row.get("MKSC_SHRN_ISCD"),
+                    row.get("BSOP_DATE") or today,
+                    str(row.get("STCK_CNTG_HOUR") or ""),
+                    _i(row.get("STCK_PRPR")),
+                    _i(row.get("CNTG_VOL")),
+                )
         r = df.iloc[0].to_dict()
         msg = self._normalize(tr_id, r)
         if msg:

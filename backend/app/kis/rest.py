@@ -14,6 +14,7 @@ import threading
 import time
 
 from app.config import get_settings
+from app.kis import bars
 from app.kis.auth import _load_ka, token_manager
 
 _settings = get_settings()
@@ -167,11 +168,10 @@ def daily_chart(
 
 
 # ---------- 분봉 차트 ----------
-# KIS 국내주식 분봉은 1분 단위만 제공(호출당 최대 30봉) → 1분봉을 뒤로 페이지네이션하며
-# 모은 뒤 N분(3/5/10/30/60)으로 집계한다. 초당 제한 탓에 페이지 수는 상한을 둔다.
-def _pages_for(interval: int) -> int:
-    """목표 ~50 출력봉을 위한 1분봉 페이지 수(페이지당 30봉), 상한 10."""
-    return max(1, min((interval * 50 + 29) // 30, 10))
+# KIS 국내 분봉은 1분봉만 제공. 부족한 히스토리만 inquire_time_dailychartprice(콜당 120봉,
+# env_dv 없음)로 백필해 bars 스토어(SQLite)에 저장하고, 이후엔 실시간 틱 누적분과 함께
+# 저장된 1분봉을 N분으로 집계해 서빙한다(요청마다 페이지네이션하던 방식 대체 → 전환 빠름).
+_backfilled: set[str] = set()
 
 
 def _minus_1min(hhmmss: str) -> str | None:
@@ -182,20 +182,23 @@ def _minus_1min(hhmmss: str) -> str | None:
     return None if total < 0 else f"{total // 60:02d}{total % 60:02d}00"
 
 
-def _fetch_1min(symbol: str, base_hour: str, market: str, past: str, pages: int) -> list[dict]:
-    """1분봉을 pages번 뒤로 이어받아 (date,time)로 중복 제거 후 오름차순 반환."""
+def _backfill_ones(symbol: str, market: str, base_date: str, base_hour: str, pages: int = 5) -> list[dict]:
+    """inquire_time_dailychartprice(120봉/콜)로 당일 1분봉을 뒤로 백필.
+
+    earliest 시각 기준 walk-back(장외에도 데이터 자체 기준). 자정 넘는(전 영업일) 확장은
+    하지 않고 당일 위주 — 다일 히스토리는 틱 누적으로 축적된다. 초당 제한 탓 페이지 상한.
+    inquire_time_dailychartprice는 env_dv를 받지 않는 단일 TR_ID이며 output2에 1분봉이 담긴다."""
     seen: dict[tuple, dict] = {}
-    cur = base_hour
+    cur_hour = base_hour
     prev_earliest: str | None = None
     for _ in range(pages):
         _, df2 = _kis(
-            _ds().inquire_time_itemchartprice,
-            env_dv=_env(),
+            _ds().inquire_time_dailychartprice,
             fid_cond_mrkt_div_code=market,
             fid_input_iscd=symbol,
-            fid_input_hour_1=cur,
-            fid_pw_data_incu_yn=past,
-            fid_etc_cls_code="",
+            fid_input_hour_1=cur_hour,
+            fid_input_date_1=base_date,
+            fid_pw_data_incu_yn="Y",
         )
         if df2 is None or df2.empty:
             break
@@ -203,10 +206,17 @@ def _fetch_1min(symbol: str, base_hour: str, market: str, past: str, pages: int)
         if not rows:
             break
         for r in rows:
-            seen[(r.get("stck_bsop_date"), r.get("stck_cntg_hour"))] = r
-        earliest = min(r["stck_cntg_hour"] for r in rows)
-        # 진행 없음(이전 페이지보다 더 과거로 못 감) → 중단. 벽시계 base_hour와 데이터
-        # 시간대가 다른 장외에도 안전하게 데이터 자체 기준으로 walk-back 한다.
+            t = str(r.get("stck_cntg_hour"))
+            seen[(r.get("stck_bsop_date"), t)] = {
+                "date": r.get("stck_bsop_date"),
+                "time": t if len(t) == 6 else t.ljust(6, "0"),
+                "open": _to_int(r.get("stck_oprc")),
+                "high": _to_int(r.get("stck_hgpr")),
+                "low": _to_int(r.get("stck_lwpr")),
+                "close": _to_int(r.get("stck_prpr")),
+                "volume": _to_int(r.get("cntg_vol")),
+            }
+        earliest = min(str(r["stck_cntg_hour"]) for r in rows)
         if prev_earliest is not None and earliest >= prev_earliest:
             break
         if earliest <= "090100":  # 장 시작 도달
@@ -215,20 +225,8 @@ def _fetch_1min(symbol: str, base_hour: str, market: str, past: str, pages: int)
         nxt = _minus_1min(earliest)
         if not nxt:
             break
-        cur = nxt
-    ordered = [seen[k] for k in sorted(seen.keys())]
-    return [
-        {
-            "date": r.get("stck_bsop_date"),
-            "time": r.get("stck_cntg_hour"),
-            "open": _to_int(r.get("stck_oprc")),
-            "high": _to_int(r.get("stck_hgpr")),
-            "low": _to_int(r.get("stck_lwpr")),
-            "close": _to_int(r.get("stck_prpr")),
-            "volume": _to_int(r.get("cntg_vol")),
-        }
-        for r in ordered
-    ]
+        cur_hour = nxt
+    return list(seen.values())
 
 
 def _aggregate_minutes(ones: list[dict], interval: int) -> list[dict]:
@@ -267,10 +265,22 @@ def _aggregate_minutes(ones: list[dict], interval: int) -> list[dict]:
 def minute_chart(
     symbol: str, base_hour: str, market: str = "J", past: str = "Y", interval: int = 1
 ) -> dict:
-    """분봉. interval(분)=1/3/5/10/30/60. 1분봉을 모아 N분으로 집계한다."""
-    ones = _fetch_1min(symbol, base_hour, market, past, _pages_for(interval))
+    """분봉. interval(분)=1/3/5/10/30/60. bars 스토어(틱 누적 + REST 백필)에서 집계.
+
+    최초 1회(또는 데이터 희소 시) REST 백필 → SQLite. 이후엔 인터벌 전환마다 저장된
+    1분봉을 재집계만 하므로 재조회가 없다(전환 즉시)."""
+    from datetime import datetime  # noqa: PLC0415
+
+    # 세션당 1회 백필 시도. 단, 이미 하루치(≥300봉)가 SQLite에 있으면 건너뜀(재기동 후 즉시).
+    if symbol not in _backfilled and bars.count(symbol) < 300:
+        base_date = datetime.now().strftime("%Y%m%d")
+        got = _backfill_ones(symbol, market, base_date, base_hour or datetime.now().strftime("%H%M%S"))
+        if got:
+            bars.save_bars(symbol, got)
+    _backfilled.add(symbol)
+    ones = bars.get_ones(symbol)
     candles = ones if interval <= 1 else _aggregate_minutes(ones, interval)
-    return {"symbol": symbol, "period": f"M{interval}", "candles": candles}
+    return {"symbol": symbol, "period": f"M{interval}", "candles": candles[-120:]}
 
 
 # ========== P3: 잔고 / 주문 ==========
