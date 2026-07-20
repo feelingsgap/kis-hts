@@ -14,6 +14,7 @@ open-trading-api의 KISWebSocket을 별도 daemon 스레드에서 기동한다.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import threading
 
@@ -25,6 +26,30 @@ logger = logging.getLogger("kis.ws")
 _settings = get_settings()
 
 MAX_SYMBOLS = 19
+
+
+def _pad_columns(builder, extra: int = 24):
+    """open-trading-api WS 빌더의 컬럼 목록 끝에 여유 패딩을 덧붙인다.
+
+    KIS 실시간 프레임의 실제 필드 수가 라이브러리 컬럼 정의보다 많으면
+    (실측: H0STASP0 호가는 62필드인데 asking_price_krx는 59컬럼) 라이브러리의
+    ``pd.read_csv(..., names=columns)``가 초과 필드를 행 인덱스로 흡수하며 데이터가
+    왼쪽으로 밀린다 → MKSC_SHRN_ISCD(종목코드) 자리에 가격이 들어가 종목 매핑이 깨지고
+    (호가가 엉뚱한 key로 저장돼) 프론트 호가창이 갱신되지 않는다.
+    컬럼 수를 실제 필드 수보다 넉넉히 두면 read_csv가 왼쪽 정렬해 data[0]=종목코드가
+    정상 매핑되고, 남는 패딩 컬럼은 NaN이 되어 무해하다.
+
+    ⚠️ **단일 레코드(001) 스트림에만 적용**한다. 체결(H0STCNT0)처럼 한 프레임에
+    여러 레코드가 이어붙는(필드수 = N×컬럼수) 멀티레코드 스트림은 패딩하면 그 정수배
+    관계가 깨져 pandas가 행/인덱스를 잘못 나눈다(오히려 정렬이 망가짐). 호가(H0STASP0)와
+    체결통보(H0STCNI0/9)는 프레임당 1레코드라 안전하다."""
+
+    @functools.wraps(builder)  # __name__ 보존 → open_map 키 동일 유지
+    def wrapped(*args, **kwargs):
+        msg, columns = builder(*args, **kwargs)
+        return msg, list(columns) + [f"_PAD{i}" for i in range(extra)]
+
+    return wrapped
 
 
 class KisWsManager:
@@ -43,12 +68,14 @@ class KisWsManager:
         """open_map을 비우고 현재 종목 + 체결통보 구독을 등록."""
         ka.open_map.clear()
         env_dv = _settings.env_dv  # WS 빌더의 env_dv: 실전 'real' / 모의 'demo'
+        # 컬럼 패딩(_pad_columns): 실시간 프레임 필드 수 > 라이브러리 컬럼 수일 때의 정렬 붕괴 방지.
+        # 단일레코드 스트림(호가·체결통보)만 패딩. 체결(멀티레코드)은 패딩 시 정수배 관계가 깨져 원본 유지.
         if symbols:
-            ka.KISWebSocket.subscribe(ws_mod.ccnl_krx, symbols, {"env_dv": env_dv})         # 체결
-            ka.KISWebSocket.subscribe(ws_mod.asking_price_krx, symbols, {"env_dv": env_dv})  # 호가
+            ka.KISWebSocket.subscribe(ws_mod.ccnl_krx, symbols, {"env_dv": env_dv})                        # 체결(멀티레코드 → 패딩 금지)
+            ka.KISWebSocket.subscribe(_pad_columns(ws_mod.asking_price_krx), symbols, {"env_dv": env_dv})  # 호가(단일레코드)
         hts_id = token_manager.hts_id
         if hts_id:
-            ka.KISWebSocket.subscribe(ws_mod.ccnl_notice, [hts_id], {"env_dv": env_dv})       # 체결통보
+            ka.KISWebSocket.subscribe(_pad_columns(ws_mod.ccnl_notice), [hts_id], {"env_dv": env_dv})       # 체결통보(단일레코드)
 
     def start(self, symbols: list[str]) -> None:
         if self._started:
@@ -130,7 +157,7 @@ class KisWsManager:
                 {"price": _i(r.get(f"BIDP{i}")), "qty": _i(r.get(f"BIDP_RSQN{i}"))}
                 for i in range(1, 11)
             ]
-            return {
+            msg = {
                 "type": "orderbook",
                 "symbol": r.get("MKSC_SHRN_ISCD"),
                 "time": r.get("BSOP_HOUR"),
@@ -139,6 +166,13 @@ class KisWsManager:
                 "total_ask_qty": _i(r.get("TOTAL_ASKP_RSQN")),
                 "total_bid_qty": _i(r.get("TOTAL_BIDP_RSQN")),
             }
+            # 예상체결(ANTC_*): 동시호가(장 시작·마감 전)에만 >0. 연속매매 중엔 0이라 생략.
+            antc = _i(r.get("ANTC_CNPR"))
+            if antc:
+                msg["exp_price"] = antc
+                msg["exp_qty"] = _i(r.get("ANTC_CNQN"))
+                msg["exp_change_rate"] = _f(r.get("ANTC_CNTG_PRDY_CTRT"))
+            return msg
         if tr_id in ("H0STCNI0", "H0STCNI9"):  # 체결통보
             if str(r.get("CNTG_YN")) != "2":  # 2:체결만 (1:주문접수 제외)
                 return None
