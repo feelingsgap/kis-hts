@@ -271,8 +271,9 @@ def minute_chart(
     1분봉을 재집계만 하므로 재조회가 없다(전환 즉시)."""
     from datetime import datetime  # noqa: PLC0415
 
-    # 세션당 1회 백필 시도. 단, 이미 하루치(≥300봉)가 SQLite에 있으면 건너뜀(재기동 후 즉시).
-    if symbol not in _backfilled and bars.count(symbol) < 300:
+    # 세션당 1회 백필(오늘 데이터 확보 — SQLite에 어제치가 있어도 새 거래일 반영). 이후 인터벌
+    # 전환은 스토어 재집계만 → 즉시. 백필은 최근 데이터로 walk-back하므로 당일분을 채운다.
+    if symbol not in _backfilled:
         base_date = datetime.now().strftime("%Y%m%d")
         got = _backfill_ones(symbol, market, base_date, base_hour or datetime.now().strftime("%H%M%S"))
         if got:
