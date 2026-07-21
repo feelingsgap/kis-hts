@@ -85,7 +85,7 @@ export function OrderPanel({ symbol }: { symbol: string }) {
     try {
       const r = await api.placeOrder({ side, symbol, qty, price, ord_dvsn: ordDvsn });
       setMsg({ ok: true, text: `${side === "buy" ? "매수" : "매도"} 주문 접수 (${r.order_no})` });
-      await refreshAccount();
+      void refreshAccount(); // await 안 함 → 접수 즉시 버튼 해제(잔고는 백그라운드 + 접수/체결 WS가 갱신)
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "주문 실패" });
     } finally {

@@ -24,18 +24,38 @@ _MIN_INTERVAL = 0.8 if _settings.env == "vps" else 0.07
 
 
 class RateLimiter:
+    """계좌 단위 초당 한도를 위한 직렬 rate limiter.
+
+    주문 등 우선 콜(priority=True)은 대기 중이면 백그라운드 조회보다 먼저 슬롯을 가져간다
+    (초당 간격은 유지하고 순서만 조정 → 주문이 폴링 뒤에 줄 서서 밀리는 문제 해소).
+    Condition 기반이라 조회가 간격만큼 대기(sleep)하는 중에도 우선 콜이 끼어들 수 있다.
+    """
+
     def __init__(self, min_interval: float) -> None:
         self._min = min_interval
-        self._lock = threading.Lock()
+        self._cv = threading.Condition()
         self._last = 0.0
+        self._pending_priority = 0  # 대기 중인 우선(주문) 콜 수
 
-    def wait(self) -> None:
-        with self._lock:
-            now = time.monotonic()
-            delta = now - self._last
-            if delta < self._min:
-                time.sleep(self._min - delta)
-            self._last = time.monotonic()
+    def wait(self, priority: bool = False) -> None:
+        with self._cv:
+            if priority:
+                self._pending_priority += 1
+                self._cv.notify_all()  # 간격 대기 중인 조회를 깨워 양보시킴
+            try:
+                while True:
+                    if not priority and self._pending_priority > 0:
+                        self._cv.wait()  # 조회는 대기 중 우선 콜에 양보
+                        continue
+                    wait_for = self._last + self._min - time.monotonic()
+                    if wait_for <= 0:
+                        break
+                    self._cv.wait(timeout=wait_for)
+                self._last = time.monotonic()
+            finally:
+                if priority:
+                    self._pending_priority -= 1
+                self._cv.notify_all()
 
 
 _limiter = RateLimiter(_MIN_INTERVAL)
@@ -505,7 +525,7 @@ def psbl_order(symbol: str, price: int, ord_dvsn: str = "00") -> dict:
 # ---------- 주문 (현금 매수/매도) ----------
 def place_order(side: str, symbol: str, qty: int, price: int, ord_dvsn: str = "00") -> dict:
     """side: buy/sell, ord_dvsn: 00 지정가 / 01 시장가. 시장가는 price=0."""
-    _limiter.wait()
+    _limiter.wait(priority=True)  # 주문은 백그라운드 폴링보다 우선
     cano, prod = _acct()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -531,7 +551,7 @@ def revise_cancel(
     ord_dvsn: str = "00", qty_all: str = "Y",
 ) -> dict:
     """rvse_cncl: 01 정정 / 02 취소. qty_all: Y 전량 / N 일부."""
-    _limiter.wait()
+    _limiter.wait(priority=True)  # 정정/취소도 우선
     cano, prod = _acct()
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):

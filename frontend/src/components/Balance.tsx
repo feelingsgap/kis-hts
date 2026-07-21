@@ -4,6 +4,7 @@ import { dir, name, num, pct, signed } from "../format";
 // 잔고 탭 본문 (외곽 박스/타이틀은 AccountPanel이 제공)
 export function Balance() {
   const balance = useStore((s) => s.balance);
+  const quotes = useStore((s) => s.quotes); // 보유 P&L을 실시간 틱에서 파생(폴링 없이 갱신)
   const select = useStore((s) => s.select);
   const setOrderDraft = useStore((s) => s.setOrderDraft);
   const s = balance?.summary;
@@ -44,7 +45,16 @@ export function Balance() {
           <div className="bt-empty">보유 종목 없음</div>
         ) : (
           holdings.map((h) => {
-            const d = dir(h.pnl);
+            // 실시간 현재가 우선(관심종목 틱), 없으면 폴링값. P&L도 실시간 재계산.
+            const live = quotes[h.symbol]?.price ?? null;
+            const price = live ?? h.price;
+            const pnl =
+              live != null && h.avg_price != null && h.qty != null
+                ? (live - h.avg_price) * h.qty
+                : h.pnl;
+            const pnlRate =
+              live != null && h.avg_price ? ((live - h.avg_price) / h.avg_price) * 100 : h.pnl_rate;
+            const d = dir(pnl);
             return (
               <div key={h.symbol} className="bt-row" onClick={() => pickHolding(h.symbol)}>
                 <span className="bt-name">
@@ -53,9 +63,9 @@ export function Balance() {
                 </span>
                 <span className="ta-r mono">{num(h.qty)}</span>
                 <span className="ta-r mono">{num(h.avg_price)}</span>
-                <span className="ta-r mono">{num(h.price)}</span>
-                <span className={`ta-r mono ${d}`}>{signed(h.pnl)}</span>
-                <span className={`ta-r mono ${d}`}>{pct(h.pnl_rate)}</span>
+                <span className="ta-r mono">{num(price)}</span>
+                <span className={`ta-r mono ${d}`}>{signed(pnl)}</span>
+                <span className={`ta-r mono ${d}`}>{pct(pnlRate)}</span>
               </div>
             );
           })

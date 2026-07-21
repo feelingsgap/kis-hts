@@ -94,10 +94,11 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectAdjacent, setOrderDraft]);
 
-  // 계좌(잔고/미체결) 초기 + 주기 갱신
+  // 계좌(잔고/미체결) 초기 + 주기 갱신. 주문 접수/체결은 WS가 즉시 refreshAccount를 트리거하고
+  // 보유 P&L은 틱에서 파생(Balance)하므로, 폴백 폴링은 15초로 완화(rate limiter 부하 감소).
   useEffect(() => {
     refreshAccount();
-    const t = setInterval(refreshAccount, 5000);
+    const t = setInterval(refreshAccount, 15000);
     return () => clearInterval(t);
   }, [refreshAccount]);
 
