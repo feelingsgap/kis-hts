@@ -25,7 +25,24 @@ from pathlib import Path
 from dotenv import dotenv_values
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]  # kis-hts/
+def _find_repo_root() -> Path:
+    """repo 루트(kis-hts/)를 찾는다.
+
+    소스 실행 시엔 이 파일 기준 parents[2]가 repo 루트다. 그러나 PyInstaller로
+    동결하면 __file__ 이 번들 내부(_MEIxxxx 등)를 가리켜 parents[2]가 깨진다.
+    우선순위: KIS_HTS_REPO_ROOT 환경변수 > parents[2](config/ 존재 확인) > ~/work/git/kis-hts.
+    자격증명(config/{env}/.env)은 절대 번들에 넣지 않으므로 외부 경로를 참조해야 한다.
+    """
+    override = os.environ.get("KIS_HTS_REPO_ROOT")
+    if override:
+        return Path(override)
+    p = Path(__file__).resolve().parents[2]
+    if (p / "config").exists():  # 소스 트리에서 실행 중
+        return p
+    return Path.home() / "work" / "git" / "kis-hts"  # 동결 바이너리 폴백
+
+
+_REPO_ROOT = _find_repo_root()  # kis-hts/
 # 개발 기본값: 이웃 리포지토리를 직접 참조. 배포 시 vendor/ 서브모듈로 교체.
 _DEFAULT_OTA = Path.home() / "work" / "git" / "open-trading-api"
 _VENDOR_OTA = _REPO_ROOT / "backend" / "vendor" / "open-trading-api"

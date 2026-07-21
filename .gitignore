@@ -18,6 +18,15 @@ config/prod/.env
 node_modules/
 frontend/dist/
 frontend/src-tauri/target/
+# 백엔드 동결 산출물 + Tauri에 동봉되는 sidecar 바이너리(빌드 아티팩트)
+backend/packaging/build/
+backend/packaging/dist/
+backend/packaging/*.log
+# resources/ 내용물은 무시하되, tauri 빌드가 디렉터리를 찾도록 .gitkeep만 추적
+frontend/src-tauri/resources/*
+!frontend/src-tauri/resources/backend/
+frontend/src-tauri/resources/backend/*
+!frontend/src-tauri/resources/backend/.gitkeep
 
 # 로컬 데이터
 *.sqlite

@@ -45,10 +45,13 @@ export default function App() {
     document.documentElement.dataset.scheme = colorScheme;
   }, [colorScheme]);
 
-  // 초기 로드: 관심종목 + 스냅샷 시세
+  // 초기 로드: 관심종목 + 스냅샷 시세.
+  // 패키징 실행 시 웹뷰가 백엔드(~6초 부팅)보다 먼저 뜨므로, 성공할 때까지 재시도한다
+  // (재시도 없으면 첫 로드 실패 후 빈 화면에 영구히 멈춤).
   useEffect(() => {
     let alive = true;
-    (async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = async () => {
       try {
         const wl = await api.watchlist();
         if (!alive) return;
@@ -61,11 +64,13 @@ export default function App() {
           }
         }
       } catch {
-        /* 백엔드 미기동 */
+        if (alive) timer = setTimeout(load, 1500); // 백엔드 아직 미기동 → 재시도
       }
-    })();
+    };
+    load();
     return () => {
       alive = false;
+      if (timer) clearTimeout(timer);
     };
   }, [setWatchlist, setQuote]);
 
